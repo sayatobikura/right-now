@@ -2,6 +2,7 @@ export type Priority = 'high' | 'medium' | 'low';
 export type Category = 'work' | 'personal' | 'self-dev';
 export type TaskStatus = 'open' | 'completed' | 'skipped';
 export type AppView = 'dashboard' | 'tasks';
+export type AIProvider = 'claude' | 'openai';
 
 export interface Task {
   id: string;

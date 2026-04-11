@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { AppView } from '../types';
+import type { AppView, AIProvider } from '../types';
 
 interface HeaderProps {
   currentView: AppView;
@@ -7,6 +7,7 @@ interface HeaderProps {
   timeString: string;
   dateString: string;
   timezone: string;
+  provider: AIProvider;
   onClearApiKey: () => void;
 }
 
@@ -16,6 +17,7 @@ export default function Header({
   timeString,
   dateString,
   timezone,
+  provider,
   onClearApiKey,
 }: HeaderProps) {
   const [showSettings, setShowSettings] = useState(false);
@@ -81,7 +83,10 @@ export default function Header({
                   className="fixed inset-0"
                   onClick={() => setShowSettings(false)}
                 />
-                <div className="absolute right-0 top-full mt-1 bg-surface-2 border border-border rounded-lg shadow-lg py-1 min-w-[160px]">
+                <div className="absolute right-0 top-full mt-1 bg-surface-2 border border-border rounded-lg shadow-lg py-1 min-w-[180px]">
+                  <div className="px-4 py-1.5 text-xs text-text-tertiary border-b border-border">
+                    Provider: {provider === 'claude' ? 'Claude' : 'ChatGPT'}
+                  </div>
                   <button
                     onClick={() => {
                       onClearApiKey();
@@ -89,7 +94,7 @@ export default function Header({
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-surface-1 transition-colors"
                   >
-                    Change API Key
+                    Change Provider / Key
                   </button>
                 </div>
               </>

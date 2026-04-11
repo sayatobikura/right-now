@@ -14,7 +14,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
   const { tasks, addTask, updateTask, deleteTask, completeTask, skipTask, reopenTask, openTasks, todayStats } = useTasks();
   const { isLoading, error, fetchRanking, focusSuggestion, upNextSuggestions } = useAI();
-  const { apiKey, hasApiKey, saveApiKey, clearApiKey } = useApiKey();
+  const { apiKey, provider, hasApiKey, saveApiKey, clearApiKey } = useApiKey();
   const { timeString, dateString, timezone } = useClock();
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -22,9 +22,9 @@ export default function App() {
 
   const triggerRanking = useCallback(() => {
     if (apiKey && openTasks.length > 0) {
-      fetchRanking(openTasks, apiKey);
+      fetchRanking(openTasks, apiKey, provider);
     }
-  }, [apiKey, openTasks, fetchRanking]);
+  }, [apiKey, provider, openTasks, fetchRanking]);
 
   // Auto-rank when open tasks change (debounced)
   useEffect(() => {
@@ -63,6 +63,7 @@ export default function App() {
         timeString={timeString}
         dateString={dateString}
         timezone={timezone}
+        provider={provider}
         onClearApiKey={clearApiKey}
       />
 

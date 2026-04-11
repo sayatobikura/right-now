@@ -1,9 +1,36 @@
 import { useState } from 'react';
+import type { AIProvider } from '../types';
 
-export default function SetupScreen({ onSave }: { onSave: (key: string) => void }) {
+interface SetupScreenProps {
+  onSave: (key: string, provider: AIProvider) => void;
+}
+
+const PROVIDERS: { value: AIProvider; label: string; placeholder: string; prefix: string; helpUrl: string; helpLabel: string }[] = [
+  {
+    value: 'claude',
+    label: 'Claude (Anthropic)',
+    placeholder: 'sk-ant-...',
+    prefix: 'sk-ant-',
+    helpUrl: 'https://console.anthropic.com/',
+    helpLabel: 'console.anthropic.com',
+  },
+  {
+    value: 'openai',
+    label: 'ChatGPT (OpenAI)',
+    placeholder: 'sk-...',
+    prefix: 'sk-',
+    helpUrl: 'https://platform.openai.com/api-keys',
+    helpLabel: 'platform.openai.com',
+  },
+];
+
+export default function SetupScreen({ onSave }: SetupScreenProps) {
+  const [provider, setProvider] = useState<AIProvider>('claude');
   const [key, setKey] = useState('');
   const [show, setShow] = useState(false);
   const [error, setError] = useState('');
+
+  const config = PROVIDERS.find((p) => p.value === provider)!;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -12,11 +39,11 @@ export default function SetupScreen({ onSave }: { onSave: (key: string) => void 
       setError('Please enter an API key');
       return;
     }
-    if (!trimmed.startsWith('sk-ant-')) {
-      setError('API key should start with sk-ant-');
+    if (!trimmed.startsWith(config.prefix)) {
+      setError(`API key should start with ${config.prefix}`);
       return;
     }
-    onSave(trimmed);
+    onSave(trimmed, provider);
   };
 
   return (
@@ -26,14 +53,42 @@ export default function SetupScreen({ onSave }: { onSave: (key: string) => void 
           <div className="text-4xl mb-3">⚡</div>
           <h1 className="text-2xl font-bold mb-2">Right Now</h1>
           <p className="text-text-secondary text-sm">
-            Enter your Claude API key to enable AI-powered task prioritization
+            Choose your AI provider and enter your API key
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Provider selector */}
           <div>
             <label className="block text-sm text-text-secondary mb-1.5">
-              Claude API Key
+              AI Provider
+            </label>
+            <div className="flex gap-2">
+              {PROVIDERS.map((p) => (
+                <button
+                  key={p.value}
+                  type="button"
+                  onClick={() => {
+                    setProvider(p.value);
+                    setKey('');
+                    setError('');
+                  }}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    provider === p.value
+                      ? 'bg-accent text-white'
+                      : 'bg-surface-2 text-text-secondary hover:text-text-primary border border-border'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* API key input */}
+          <div>
+            <label className="block text-sm text-text-secondary mb-1.5">
+              API Key
             </label>
             <div className="relative">
               <input
@@ -43,7 +98,7 @@ export default function SetupScreen({ onSave }: { onSave: (key: string) => void 
                   setKey(e.target.value);
                   setError('');
                 }}
-                placeholder="sk-ant-..."
+                placeholder={config.placeholder}
                 className="w-full bg-surface-2 border border-border rounded-lg px-4 py-2.5 text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent"
               />
               <button
@@ -70,12 +125,12 @@ export default function SetupScreen({ onSave }: { onSave: (key: string) => void 
         <p className="text-text-tertiary text-xs text-center mt-6">
           Get a key at{' '}
           <a
-            href="https://console.anthropic.com/"
+            href={config.helpUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="text-accent hover:text-accent-hover underline"
           >
-            console.anthropic.com
+            {config.helpLabel}
           </a>
           . Your key stays in your browser.
         </p>

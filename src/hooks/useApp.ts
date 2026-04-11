@@ -1,5 +1,5 @@
 import { useReducer, useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import type { Task, TaskAction, Priority, Category, AIRankingResult, AISuggestion } from '../types';
+import type { Task, TaskAction, Priority, Category, AIRankingResult, AISuggestion, AIProvider } from '../types';
 import * as TaskService from '../services/TaskService';
 import * as AIService from '../services/AIService';
 import * as SettingsService from '../services/SettingsService';
@@ -108,9 +108,9 @@ export function useAI() {
   const [ranking, setRanking] = useState<AIRankingResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchRanking = useCallback(async (tasks: Task[], apiKey: string) => {
+  const fetchRanking = useCallback(async (tasks: Task[], apiKey: string, provider: AIProvider) => {
     setIsLoading(true);
-    const result = await AIService.rankTasks(tasks, apiKey);
+    const result = await AIService.rankTasks(tasks, apiKey, provider);
     setRanking(result);
     setIsLoading(false);
   }, []);
@@ -144,20 +144,25 @@ export function useAI() {
 
 export function useApiKey() {
   const [apiKey, setApiKeyState] = useState<string | null>(() => SettingsService.getApiKey());
+  const [provider, setProviderState] = useState<AIProvider>(() => SettingsService.getProvider());
 
-  const saveApiKey = useCallback((key: string) => {
+  const saveApiKey = useCallback((key: string, prov: AIProvider) => {
     SettingsService.setApiKey(key);
+    SettingsService.setProvider(prov);
     setApiKeyState(key);
+    setProviderState(prov);
   }, []);
 
   const clearApiKey = useCallback(() => {
     SettingsService.clearApiKey();
+    SettingsService.clearProvider();
     setApiKeyState(null);
+    setProviderState('claude');
   }, []);
 
   const hasApiKey = apiKey !== null && apiKey.length > 0;
 
-  return { apiKey, hasApiKey, saveApiKey, clearApiKey };
+  return { apiKey, provider, hasApiKey, saveApiKey, clearApiKey };
 }
 
 // ── useClock ──
