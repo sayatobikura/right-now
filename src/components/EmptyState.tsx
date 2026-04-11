@@ -8,14 +8,12 @@ export default function EmptyState() {
         fill="none"
         className="mx-auto mb-4 text-text-tertiary"
       >
-        <rect x="16" y="8" width="32" height="48" rx="4" stroke="currentColor" strokeWidth="2" />
-        <path d="M24 22h16M24 30h16M24 38h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        <circle cx="48" cy="48" r="12" fill="var(--surface-1)" stroke="currentColor" strokeWidth="2" />
-        <path d="M48 42v12M42 48h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <rect x="12" y="8" width="40" height="48" rx="4" stroke="currentColor" strokeWidth="2" />
+        <path d="M22 20h20M22 28h20M22 36h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
-      <h3 className="text-lg font-medium text-text-primary mb-1">Nothing on your plate</h3>
+      <h3 className="text-lg font-medium text-text-primary mb-1">No notes yet</h3>
       <p className="text-sm text-text-tertiary">
-        Add your first task above and let AI help you focus
+        Start capturing your thoughts — AI will organize them for you
       </p>
     </div>
   );

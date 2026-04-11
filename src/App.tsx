@@ -1,61 +1,74 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import type { AppView } from './types';
-import { useTasks, useAI, useApiKey, useClock } from './hooks/useApp';
+import { useState, useCallback } from 'react';
+import type { AppView, Note } from './types';
+import { useNotes, useAIOrganize, useApiKey, useClock } from './hooks/useApp';
+import * as NoteService from './services/NoteService';
 import SetupScreen from './components/SetupScreen';
 import Header from './components/Header';
-import QuickAdd from './components/QuickAdd';
-import FocusCard from './components/FocusCard';
-import UpNext from './components/UpNext';
-import ProgressBar from './components/ProgressBar';
-import TaskList from './components/TaskList';
+import NoteEditor from './components/NoteEditor';
+import NoteGrid from './components/NoteGrid';
+import NoteDetail from './components/NoteDetail';
+import TagFilter from './components/TagFilter';
+import JournalView from './components/JournalView';
 import EmptyState from './components/EmptyState';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<AppView>('dashboard');
-  const { tasks, addTask, updateTask, deleteTask, completeTask, skipTask, reopenTask, openTasks, todayStats } = useTasks();
-  const { isLoading, error, fetchRanking, focusSuggestion, upNextSuggestions } = useAI();
+  const [currentView, setCurrentView] = useState<AppView>('notes');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+
+  const { notes, addNote, updateNote, deleteNote, togglePin, allTags, allCategories } = useNotes();
+  const { isOrganizing, organizeNote, connections, isLoadingConnections, findConnections, clearConnections } = useAIOrganize();
   const { apiKey, provider, hasApiKey, saveApiKey, clearApiKey } = useApiKey();
   const { timeString, dateString, timezone } = useClock();
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const prevOpenCountRef = useRef<number>(0);
-  const openTasksRef = useRef(openTasks);
-  openTasksRef.current = openTasks;
+  // Add note + auto-organize with AI
+  const handleAddNote = useCallback(
+    async (content: string) => {
+      const note = addNote(content);
+      if (apiKey) {
+        const result = await organizeNote(content, apiKey, provider);
+        if (result) {
+          updateNote(note.id, { tags: result.tags, category: result.category });
+        }
+      }
+    },
+    [addNote, apiKey, provider, organizeNote, updateNote]
+  );
 
-  const triggerRanking = useCallback(() => {
-    if (apiKey && openTasksRef.current.length > 0) {
-      fetchRanking(openTasksRef.current, apiKey, provider);
-    }
-  }, [apiKey, provider, fetchRanking]);
+  const handleSelectNote = useCallback(
+    (note: Note) => {
+      setSelectedNote(note);
+      clearConnections();
+    },
+    [clearConnections]
+  );
 
-  // Auto-rank when open tasks change (debounced)
-  useEffect(() => {
-    if (!hasApiKey || openTasks.length === 0) return;
+  const handleFindConnections = useCallback(
+    (note: Note) => {
+      if (apiKey) {
+        findConnections(note, notes, apiKey, provider);
+      }
+    },
+    [apiKey, provider, notes, findConnections]
+  );
 
-    // On first load with tasks, rank immediately
-    if (prevOpenCountRef.current === 0 && openTasks.length > 0) {
-      prevOpenCountRef.current = openTasks.length;
-      triggerRanking();
-      return;
-    }
+  // Filter notes
+  let filteredNotes = notes;
+  if (searchQuery) {
+    filteredNotes = NoteService.searchNotes(filteredNotes, searchQuery);
+  }
+  if (selectedTag) {
+    filteredNotes = filteredNotes.filter((n) => n.tags.includes(selectedTag));
+  }
+  if (selectedCategory) {
+    filteredNotes = filteredNotes.filter((n) => n.category === selectedCategory);
+  }
 
-    prevOpenCountRef.current = openTasks.length;
-
-    // Debounce subsequent changes
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(triggerRanking, 2000);
-
-    return () => clearTimeout(debounceRef.current);
-  }, [hasApiKey, openTasks.length, triggerRanking]);
-
-  // Show setup if no API key
   if (!hasApiKey) {
     return <SetupScreen onSave={saveApiKey} />;
   }
-
-  const focusTask = focusSuggestion
-    ? tasks.find((t) => t.id === focusSuggestion.taskId) ?? null
-    : null;
 
   return (
     <div className="min-h-screen bg-surface-0">
@@ -67,50 +80,67 @@ export default function App() {
         timezone={timezone}
         provider={provider}
         onClearApiKey={clearApiKey}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
       />
 
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {currentView === 'dashboard' ? (
-          <>
-            <QuickAdd onAdd={addTask} />
-            <ProgressBar total={todayStats.total} completed={todayStats.completed} />
+      <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+        <NoteEditor onAdd={handleAddNote} />
 
-            {error && (
-              <div className="bg-danger/10 border border-danger/20 rounded-lg px-4 py-3">
-                <p className="text-sm text-danger">{error}</p>
-              </div>
-            )}
+        {isOrganizing && (
+          <div className="flex items-center gap-2 text-xs text-accent">
+            <div className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            AI is organizing your note...
+          </div>
+        )}
 
-            {openTasks.length === 0 && !isLoading ? (
-              <EmptyState />
-            ) : (
-              <>
-                <FocusCard
-                  suggestion={focusSuggestion}
-                  task={focusTask}
-                  onComplete={completeTask}
-                  onSkip={skipTask}
-                  onRefresh={triggerRanking}
-                  isLoading={isLoading}
-                />
-                <UpNext suggestions={upNextSuggestions} tasks={tasks} />
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            <QuickAdd onAdd={addTask} />
-            <TaskList
-              tasks={tasks}
-              onUpdate={updateTask}
-              onDelete={deleteTask}
-              onComplete={completeTask}
-              onSkip={skipTask}
-              onReopen={reopenTask}
+        <TagFilter
+          tags={allTags}
+          categories={allCategories}
+          selectedTag={selectedTag}
+          selectedCategory={selectedCategory}
+          onTagSelect={setSelectedTag}
+          onCategorySelect={setSelectedCategory}
+        />
+
+        {currentView === 'notes' ? (
+          filteredNotes.length === 0 && !searchQuery && !selectedTag && !selectedCategory ? (
+            <EmptyState />
+          ) : filteredNotes.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-text-tertiary text-sm">No matching notes</p>
+            </div>
+          ) : (
+            <NoteGrid
+              notes={filteredNotes}
+              onUpdate={updateNote}
+              onDelete={deleteNote}
+              onTogglePin={togglePin}
+              onSelect={handleSelectNote}
             />
-          </>
+          )
+        ) : (
+          <JournalView notes={filteredNotes} onSelect={handleSelectNote} />
         )}
       </main>
+
+      {selectedNote && (
+        <NoteDetail
+          note={selectedNote}
+          connections={connections}
+          isLoadingConnections={isLoadingConnections}
+          allNotes={notes}
+          onUpdate={(id, updates) => {
+            updateNote(id, updates);
+            setSelectedNote((prev) => (prev ? { ...prev, ...updates } : null));
+          }}
+          onFindConnections={handleFindConnections}
+          onClose={() => {
+            setSelectedNote(null);
+            clearConnections();
+          }}
+        />
+      )}
     </div>
   );
 }

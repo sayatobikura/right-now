@@ -1,37 +1,29 @@
-export type Priority = 'high' | 'medium' | 'low';
-export type Category = 'work' | 'personal' | 'self-dev';
-export type TaskStatus = 'open' | 'completed' | 'skipped';
-export type AppView = 'dashboard' | 'tasks';
 export type AIProvider = 'claude' | 'openai';
+export type AppView = 'notes' | 'journal';
 
-export interface Task {
+export interface Note {
   id: string;
-  title: string;
-  priority: Priority;
-  category: Category;
-  status: TaskStatus;
-  deadline: string | null;
+  content: string;
+  tags: string[];
+  category: string | null;
+  isPinned: boolean;
   createdAt: string;
-  completedAt: string | null;
+  updatedAt: string;
 }
 
-export interface AISuggestion {
-  taskId: string;
-  reasoning: string;
-  rank: number;
+export interface AIOrganizeResult {
+  tags: string[];
+  category: string;
 }
 
-export interface AIRankingResult {
-  suggestions: AISuggestion[];
-  rankedAt: string;
-  error: string | null;
+export interface AIConnectionResult {
+  noteId: string;
+  reason: string;
 }
 
-export type TaskAction =
-  | { type: 'ADD_TASK'; task: Task }
-  | { type: 'UPDATE_TASK'; id: string; updates: Partial<Omit<Task, 'id' | 'createdAt'>> }
-  | { type: 'DELETE_TASK'; id: string }
-  | { type: 'COMPLETE_TASK'; id: string }
-  | { type: 'SKIP_TASK'; id: string }
-  | { type: 'REOPEN_TASK'; id: string }
-  | { type: 'LOAD_TASKS'; tasks: Task[] };
+export type NoteAction =
+  | { type: 'ADD_NOTE'; note: Note }
+  | { type: 'UPDATE_NOTE'; id: string; updates: Partial<Omit<Note, 'id' | 'createdAt'>> }
+  | { type: 'DELETE_NOTE'; id: string }
+  | { type: 'TOGGLE_PIN'; id: string }
+  | { type: 'LOAD_NOTES'; notes: Note[] };

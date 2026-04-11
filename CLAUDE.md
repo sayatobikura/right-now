@@ -1,54 +1,56 @@
-# Right Now — AI-Powered Personal Focus Dashboard
+# Right Now — AI-Powered Quick Notes & Journal
 
 ## What This Is
-A personal productivity tool that answers: "What should I be doing right now?"
-Combines lightweight task capture with Claude AI-powered prioritization to surface the most important thing to focus on.
+A personal note-taking app with AI-powered auto-organization. Capture thoughts quickly, and AI automatically tags, categorizes, and finds connections between your notes.
 
 ## Architecture
 - **Pure static site** — no backend, no serverless functions
-- **BYOK (Bring Your Own Key)** — users enter their own Claude API key
-- API key stored in localStorage, sent directly to Anthropic API from browser
-- Task data stored in localStorage
+- **BYOK (Bring Your Own Key)** — users enter their own Claude or OpenAI API key
+- API key stored in localStorage, sent directly to AI provider from browser
+- Note data stored in localStorage
 - Hosted on Vercel free tier (static deploy)
 
 ## Tech Stack
-- React 18 + TypeScript
-- Tailwind CSS (dark theme by default, light theme class available)
+- React 19 + TypeScript
+- Tailwind CSS v3 (dark theme by default, light theme class available)
 - Vite for build
-- Claude Sonnet API for AI prioritization (model: claude-sonnet-4-20250514)
-- No state management library — React Context + useReducer
+- Claude Sonnet or GPT-4o for AI organization (model selectable at setup)
+- No state management library — React useReducer + hooks
 
 ## Project Structure
 ```
 src/
 ├── components/       # React UI components
-│   ├── SetupScreen   # First-run API key onboarding
-│   ├── Header        # Nav, clock, timezone, settings dropdown
-│   ├── QuickAdd      # Task capture bar (expand for priority/deadline/category)
-│   ├── FocusCard     # Hero card — AI-recommended current task
-│   ├── UpNext        # Ranked queue of next 3-5 tasks
-│   ├── ProgressBar   # Daily completion tracker
-│   ├── TaskList      # Full CRUD view with filter tabs
-│   └── EmptyState    # No-tasks placeholder
+│   ├── SetupScreen   # First-run API key + provider onboarding
+│   ├── Header        # Nav, search, clock, settings dropdown
+│   ├── NoteEditor    # Quick note capture (expandable textarea)
+│   ├── NoteCard      # Individual note card (pin, tags, category)
+│   ├── NoteGrid      # Google Keep-style grid layout
+│   ├── NoteDetail    # Full note view modal with edit + connections
+│   ├── TagFilter     # Filter by tags and categories
+│   ├── JournalView   # Timeline/chronological view grouped by day
+│   └── EmptyState    # No-notes placeholder
 ├── services/         # Business logic (no React dependency)
-│   ├── TaskService   # Task CRUD + localStorage persistence
-│   ├── AIService     # Claude API integration + prompt engineering
-│   └── SettingsService # API key management
+│   ├── NoteService   # Note CRUD + localStorage persistence
+│   ├── AIService     # AI auto-organize + connection discovery
+│   └── SettingsService # API key + provider management
 ├── hooks/            # Custom React hooks
-│   └── useApp        # useTasks, useAI, useApiKey, useClock
+│   └── useApp        # useNotes, useAIOrganize, useApiKey, useClock
 ├── types/            # TypeScript type definitions
-│   └── index         # Task, AISuggestion, Priority, Category, etc.
-├── App.tsx           # Main app — routing between dashboard/tasks/setup
+│   └── index         # Note, AIOrganizeResult, AIConnectionResult, etc.
+├── App.tsx           # Main app — routing between notes/journal/setup
 ├── main.tsx          # Entry point
 └── index.css         # CSS variables (theme tokens) + Tailwind directives
 ```
 
 ## Key Design Decisions
-- One-screen app: Focus Dashboard is the primary view, Task List is secondary
-- AI-first prioritization: Claude decides what matters, not manual drag-and-drop
-- Tasks have: title, priority (high/med/low), category (work/personal/self-dev), deadline, status (open/completed/skipped)
-- AI prompt includes: all open tasks, current time/timezone, day of week, time-of-day context
-- API calls use `anthropic-dangerous-direct-browser-access` header for CORS
+- Two views: Notes (grid) and Journal (timeline) — Notes is primary
+- AI-first organization: AI auto-tags and categorizes on save
+- Notes have: content, tags[], category, isPinned, timestamps
+- AI finds connections between notes on demand (in detail view)
+- Supports two AI providers: Claude (Anthropic) and ChatGPT (OpenAI)
+- Claude uses `@anthropic-ai/sdk` with `dangerouslyAllowBrowser: true`
+- OpenAI uses raw `fetch` to avoid extra SDK dependency
 
 ## Commands
 ```bash
@@ -60,12 +62,6 @@ npm run preview  # Preview production build
 ## Theme System
 CSS variables defined in `src/index.css`. Dark theme is default (:root), light theme via `.light` class on html.
 Tailwind config maps to these variables (e.g., `bg-surface-0`, `text-text-primary`, `text-accent`).
-
-## Current Status (MVP)
-- [x] Week 1: Task CRUD + localStorage + responsive layout
-- [x] Week 2: Claude API integration + BYOK setup + AI ranking
-- [ ] Week 3: Polish — animations, swipe gestures, dark/light toggle
-- [ ] Week 4: PWA, timezone edge cases, offline fallback, deploy
 
 ## Coding Conventions
 - Functional components only, no class components

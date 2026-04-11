@@ -1,146 +1,134 @@
 import { useReducer, useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import type { Task, TaskAction, Priority, Category, AIRankingResult, AISuggestion, AIProvider } from '../types';
-import * as TaskService from '../services/TaskService';
+import type { Note, NoteAction, AIProvider, AIOrganizeResult, AIConnectionResult } from '../types';
+import * as NoteService from '../services/NoteService';
 import * as AIService from '../services/AIService';
 import * as SettingsService from '../services/SettingsService';
 
-// ── useTasks ──
+// ── useNotes ──
 
-function taskReducer(state: Task[], action: TaskAction): Task[] {
+function noteReducer(state: Note[], action: NoteAction): Note[] {
   switch (action.type) {
-    case 'ADD_TASK':
-      return [action.task, ...state];
-    case 'UPDATE_TASK':
-      return state.map((t) =>
-        t.id === action.id ? { ...t, ...action.updates } : t
+    case 'ADD_NOTE':
+      return [action.note, ...state];
+    case 'UPDATE_NOTE':
+      return state.map((n) =>
+        n.id === action.id
+          ? { ...n, ...action.updates, updatedAt: new Date().toISOString() }
+          : n
       );
-    case 'DELETE_TASK':
-      return state.filter((t) => t.id !== action.id);
-    case 'COMPLETE_TASK':
-      return state.map((t) =>
-        t.id === action.id
-          ? { ...t, status: 'completed' as const, completedAt: new Date().toISOString() }
-          : t
+    case 'DELETE_NOTE':
+      return state.filter((n) => n.id !== action.id);
+    case 'TOGGLE_PIN':
+      return state.map((n) =>
+        n.id === action.id ? { ...n, isPinned: !n.isPinned } : n
       );
-    case 'SKIP_TASK':
-      return state.map((t) =>
-        t.id === action.id ? { ...t, status: 'skipped' as const } : t
-      );
-    case 'REOPEN_TASK':
-      return state.map((t) =>
-        t.id === action.id
-          ? { ...t, status: 'open' as const, completedAt: null }
-          : t
-      );
-    case 'LOAD_TASKS':
-      return action.tasks;
+    case 'LOAD_NOTES':
+      return action.notes;
     default:
       return state;
   }
 }
 
-export function useTasks() {
-  const [tasks, dispatch] = useReducer(taskReducer, []);
+export function useNotes() {
+  const [notes, dispatch] = useReducer(noteReducer, []);
   const isInitialized = useRef(false);
 
   useEffect(() => {
-    const loaded = TaskService.loadTasks();
-    dispatch({ type: 'LOAD_TASKS', tasks: loaded });
+    const loaded = NoteService.loadNotes();
+    dispatch({ type: 'LOAD_NOTES', notes: loaded });
     isInitialized.current = true;
   }, []);
 
   useEffect(() => {
     if (isInitialized.current) {
-      TaskService.saveTasks(tasks);
+      NoteService.saveNotes(notes);
     }
-  }, [tasks]);
+  }, [notes]);
 
-  const addTask = useCallback(
-    (input: { title: string; priority: Priority; category: Category; deadline: string | null }) => {
-      const task = TaskService.createTask(input);
-      dispatch({ type: 'ADD_TASK', task });
-    },
-    []
-  );
-
-  const updateTask = useCallback(
-    (id: string, updates: Partial<Omit<Task, 'id' | 'createdAt'>>) => {
-      dispatch({ type: 'UPDATE_TASK', id, updates });
-    },
-    []
-  );
-
-  const deleteTask = useCallback((id: string) => {
-    dispatch({ type: 'DELETE_TASK', id });
+  const addNote = useCallback((content: string) => {
+    const note = NoteService.createNote(content);
+    dispatch({ type: 'ADD_NOTE', note });
+    return note;
   }, []);
 
-  const completeTask = useCallback((id: string) => {
-    dispatch({ type: 'COMPLETE_TASK', id });
+  const updateNote = useCallback((id: string, updates: Partial<Omit<Note, 'id' | 'createdAt'>>) => {
+    dispatch({ type: 'UPDATE_NOTE', id, updates });
   }, []);
 
-  const skipTask = useCallback((id: string) => {
-    dispatch({ type: 'SKIP_TASK', id });
+  const deleteNote = useCallback((id: string) => {
+    dispatch({ type: 'DELETE_NOTE', id });
   }, []);
 
-  const reopenTask = useCallback((id: string) => {
-    dispatch({ type: 'REOPEN_TASK', id });
+  const togglePin = useCallback((id: string) => {
+    dispatch({ type: 'TOGGLE_PIN', id });
   }, []);
 
-  const openTasks = useMemo(() => TaskService.getOpenTasks(tasks), [tasks]);
-  const todayStats = useMemo(() => TaskService.getTodayStats(tasks), [tasks]);
+  const allTags = useMemo(() => NoteService.getAllTags(notes), [notes]);
+  const allCategories = useMemo(() => NoteService.getAllCategories(notes), [notes]);
+
+  const sortedNotes = useMemo(() => {
+    return [...notes].sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [notes]);
 
   return {
-    tasks,
-    addTask,
-    updateTask,
-    deleteTask,
-    completeTask,
-    skipTask,
-    reopenTask,
-    openTasks,
-    todayStats,
+    notes: sortedNotes,
+    addNote,
+    updateNote,
+    deleteNote,
+    togglePin,
+    allTags,
+    allCategories,
   };
 }
 
-// ── useAI ──
+// ── useAIOrganize ──
 
-export function useAI() {
-  const [ranking, setRanking] = useState<AIRankingResult | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+export function useAIOrganize() {
+  const [isOrganizing, setIsOrganizing] = useState(false);
+  const [connections, setConnections] = useState<AIConnectionResult[]>([]);
+  const [isLoadingConnections, setIsLoadingConnections] = useState(false);
   const loadingRef = useRef(false);
 
-  const fetchRanking = useCallback(async (tasks: Task[], apiKey: string, provider: AIProvider) => {
-    if (loadingRef.current) return;
-    loadingRef.current = true;
-    setIsLoading(true);
-    const result = await AIService.rankTasks(tasks, apiKey, provider);
-    setRanking(result);
-    setIsLoading(false);
-    loadingRef.current = false;
-  }, []);
-
-  const clearRanking = useCallback(() => {
-    setRanking(null);
-  }, []);
-
-  const focusSuggestion: AISuggestion | null = useMemo(
-    () => ranking?.suggestions.find((s) => s.rank === 1) ?? ranking?.suggestions[0] ?? null,
-    [ranking]
+  const organizeNote = useCallback(
+    async (
+      content: string,
+      apiKey: string,
+      provider: AIProvider
+    ): Promise<AIOrganizeResult | null> => {
+      if (loadingRef.current) return null;
+      loadingRef.current = true;
+      setIsOrganizing(true);
+      const result = await AIService.organizeNote(content, apiKey, provider);
+      setIsOrganizing(false);
+      loadingRef.current = false;
+      return result;
+    },
+    []
   );
 
-  const upNextSuggestions: AISuggestion[] = useMemo(
-    () => (ranking?.suggestions.filter((s) => s !== focusSuggestion).slice(0, 5) ?? []),
-    [ranking, focusSuggestion]
+  const findConnections = useCallback(
+    async (note: Note, allNotes: Note[], apiKey: string, provider: AIProvider) => {
+      setIsLoadingConnections(true);
+      const result = await AIService.findConnections(note, allNotes, apiKey, provider);
+      setConnections(result);
+      setIsLoadingConnections(false);
+    },
+    []
   );
+
+  const clearConnections = useCallback(() => setConnections([]), []);
 
   return {
-    ranking,
-    isLoading,
-    error: ranking?.error ?? null,
-    fetchRanking,
-    clearRanking,
-    focusSuggestion,
-    upNextSuggestions,
+    isOrganizing,
+    organizeNote,
+    connections,
+    isLoadingConnections,
+    findConnections,
+    clearConnections,
   };
 }
 
