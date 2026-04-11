@@ -107,12 +107,16 @@ export function useTasks() {
 export function useAI() {
   const [ranking, setRanking] = useState<AIRankingResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const loadingRef = useRef(false);
 
   const fetchRanking = useCallback(async (tasks: Task[], apiKey: string, provider: AIProvider) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setIsLoading(true);
     const result = await AIService.rankTasks(tasks, apiKey, provider);
     setRanking(result);
     setIsLoading(false);
+    loadingRef.current = false;
   }, []);
 
   const clearRanking = useCallback(() => {

@@ -19,12 +19,14 @@ export default function App() {
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const prevOpenCountRef = useRef<number>(0);
+  const openTasksRef = useRef(openTasks);
+  openTasksRef.current = openTasks;
 
   const triggerRanking = useCallback(() => {
-    if (apiKey && openTasks.length > 0) {
-      fetchRanking(openTasks, apiKey, provider);
+    if (apiKey && openTasksRef.current.length > 0) {
+      fetchRanking(openTasksRef.current, apiKey, provider);
     }
-  }, [apiKey, provider, openTasks, fetchRanking]);
+  }, [apiKey, provider, fetchRanking]);
 
   // Auto-rank when open tasks change (debounced)
   useEffect(() => {
