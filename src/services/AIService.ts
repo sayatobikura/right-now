@@ -39,21 +39,32 @@ async function callClaude(apiKey: string, system: string, userMessage: string): 
 }
 
 async function callOpenAI(apiKey: string, system: string, userMessage: string): Promise<string> {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      max_tokens: 512,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: userMessage },
-      ],
-    }),
-  });
+  const doRequest = async (): Promise<Response> => {
+    return fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        max_tokens: 512,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: userMessage },
+        ],
+      }),
+    });
+  };
+
+  let response = await doRequest();
+
+  // Retry once with backoff on rate limit
+  if (response.status === 429) {
+    await new Promise((r) => setTimeout(r, 3000));
+    response = await doRequest();
+  }
+
   if (!response.ok) {
     const status = response.status;
     if (status === 401) throw new Error('Invalid API key. Please check your key in settings.');
@@ -75,14 +86,15 @@ export async function organizeNote(
   content: string,
   apiKey: string,
   provider: AIProvider
-): Promise<AIOrganizeResult | null> {
+): Promise<{ result: AIOrganizeResult | null; error: string | null }> {
   try {
     const text = await callAI(apiKey, provider, ORGANIZE_PROMPT, `Note content:\n${content}`);
-    if (!text) return null;
-    return parseJSON<AIOrganizeResult>(text);
+    if (!text) return { result: null, error: null };
+    return { result: parseJSON<AIOrganizeResult>(text), error: null };
   } catch (err) {
+    const message = err instanceof Error ? err.message : 'AI organization failed';
     console.error('AI organize error:', err);
-    return null;
+    return { result: null, error: message };
   }
 }
 

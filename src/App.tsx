@@ -19,7 +19,7 @@ export default function App() {
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
 
   const { notes, addNote, updateNote, deleteNote, togglePin, allTags, allCategories } = useNotes();
-  const { isOrganizing, organizeNote, connections, isLoadingConnections, findConnections, clearConnections } = useAIOrganize();
+  const { isOrganizing, organizeError, clearError, organizeNote, connections, isLoadingConnections, findConnections, clearConnections } = useAIOrganize();
   const { apiKey, provider, hasApiKey, saveApiKey, clearApiKey } = useApiKey();
   const { timeString, dateString, timezone } = useClock();
 
@@ -91,6 +91,13 @@ export default function App() {
           <div className="flex items-center gap-2 text-xs text-accent">
             <div className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
             AI is organizing your note...
+          </div>
+        )}
+
+        {organizeError && (
+          <div className="flex items-center justify-between bg-danger/10 border border-danger/20 rounded-lg px-4 py-2.5">
+            <p className="text-xs text-danger">{organizeError}</p>
+            <button onClick={clearError} className="text-xs text-danger/60 hover:text-danger ml-3">dismiss</button>
           </div>
         )}
 

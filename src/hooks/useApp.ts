@@ -89,6 +89,7 @@ export function useNotes() {
 
 export function useAIOrganize() {
   const [isOrganizing, setIsOrganizing] = useState(false);
+  const [organizeError, setOrganizeError] = useState<string | null>(null);
   const [connections, setConnections] = useState<AIConnectionResult[]>([]);
   const [isLoadingConnections, setIsLoadingConnections] = useState(false);
   const loadingRef = useRef(false);
@@ -102,13 +103,17 @@ export function useAIOrganize() {
       if (loadingRef.current) return null;
       loadingRef.current = true;
       setIsOrganizing(true);
-      const result = await AIService.organizeNote(content, apiKey, provider);
+      setOrganizeError(null);
+      const { result, error } = await AIService.organizeNote(content, apiKey, provider);
+      if (error) setOrganizeError(error);
       setIsOrganizing(false);
       loadingRef.current = false;
       return result;
     },
     []
   );
+
+  const clearError = useCallback(() => setOrganizeError(null), []);
 
   const findConnections = useCallback(
     async (note: Note, allNotes: Note[], apiKey: string, provider: AIProvider) => {
@@ -124,6 +129,8 @@ export function useAIOrganize() {
 
   return {
     isOrganizing,
+    organizeError,
+    clearError,
     organizeNote,
     connections,
     isLoadingConnections,
