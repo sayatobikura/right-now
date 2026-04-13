@@ -231,7 +231,7 @@ async function callChatGPTOAuth(content) {
       model: 'gpt-4o-mini',
       instructions: ORGANIZE_PROMPT_TEXT,
       input: [{ role: 'user', content: `Note content:\n${content}` }],
-      stream: false,
+      stream: true,
       store: false,
     }),
   });
@@ -240,10 +240,24 @@ async function callChatGPTOAuth(content) {
     await clearOAuthTokens();
     throw new Error('Session expired. Please sign in again.');
   }
-  if (!resp.ok) throw new Error(`ChatGPT API error (${resp.status})`);
+  if (!resp.ok) {
+    const errBody = await resp.text().catch(() => '');
+    throw new Error(`ChatGPT API error (${resp.status}): ${errBody.slice(0, 200)}`);
+  }
 
-  const data = await resp.json();
-  // Responses API format
-  const textOutput = data.output?.find((o) => o.type === 'message')?.content?.find((c) => c.type === 'output_text');
-  return textOutput?.text || '';
+  // Parse SSE stream to extract the full response text
+  const text = await resp.text();
+  let result = '';
+  for (const line of text.split('\n')) {
+    if (!line.startsWith('data: ')) continue;
+    try {
+      const parsed = JSON.parse(line.slice(6));
+      if (parsed.type === 'response.output_text.delta' && parsed.delta) {
+        result += parsed.delta;
+      }
+    } catch {
+      // skip non-JSON lines
+    }
+  }
+  return result;
 }
