@@ -20,6 +20,15 @@ export default {
         success: 'var(--success)',
         warning: 'var(--warning)',
         border: 'var(--border)',
+        priority: {
+          high: 'var(--priority-high)',
+          medium: 'var(--priority-medium)',
+          low: 'var(--priority-low)',
+        },
+        overdue: {
+          bg: 'var(--overdue-bg)',
+          border: 'var(--overdue-border)',
+        },
       },
     },
   },

@@ -16,6 +16,20 @@
   --success: #7cc9a0;
   --warning: #f0c674;
   --border: #edddd0;
+
+  /* Priority colors */
+  --priority-high: #e87461;
+  --priority-medium: #f0c674;
+  --priority-low: #7cc9a0;
+
+  /* Overdue */
+  --overdue-bg: #fdf0ee;
+  --overdue-border: #f5c4bc;
+
+  /* Item type colors */
+  --type-task: #8bb8d9;
+  --type-idea: #f0c674;
+  --type-tip: #b8a9d4;
 }
 
 body {

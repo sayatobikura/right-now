@@ -207,14 +207,26 @@ async function getValidToken() {
 // ── ChatGPT API call via OAuth ──
 // Uses /responses endpoint (same as Quill's openai_responses.rs)
 
-const ORGANIZE_PROMPT_TEXT = `You are a note organization assistant. Given a note's content, suggest relevant tags and a category.
+function buildOrganizePromptText() {
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const dayName = now.toLocaleDateString('en-US', { weekday: 'long' });
+  return `You are a personal productivity AI. Given a capture (note, idea, task, or tip), classify it and extract structured data.
+
+Today is ${dayName}, ${today}.
 
 Rules:
-- Tags: 1-5 short lowercase tags (e.g., "meeting", "idea", "shopping")
-- Category: exactly one of: "work", "personal", "ideas", "journal", "reference", "learning"
+1. "type": Classify as one of: "task" (actionable), "idea" (creative thought), "tip" (advice), "note" (informational)
+2. "tags": 1-5 short lowercase tags
+3. "category": one of: "work", "personal", "ideas", "journal", "reference", "learning"
+4. "priority": For tasks — "high", "medium", or "low". null for non-tasks.
+5. "deadline": If text mentions a date (e.g., "by Friday"), convert to YYYY-MM-DD. null if none.
+6. "deadlineReason": How you derived the deadline. null if none.
+7. "suggestedSchedule": For tasks, suggest when to work on it (YYYY-MM-DD). null for non-tasks.
 
 Respond with ONLY valid JSON:
-{ "tags": ["tag1", "tag2"], "category": "work" }`;
+{"type":"task","tags":["tag1"],"category":"work","priority":"high","deadline":"${today}","deadlineReason":"from text","suggestedSchedule":"${today}"}`;
+}
 
 async function callChatGPTOAuth(content) {
   const tokens = await getValidToken();
@@ -229,8 +241,8 @@ async function callChatGPTOAuth(content) {
     },
     body: JSON.stringify({
       model: 'gpt-5.3-codex',
-      instructions: ORGANIZE_PROMPT_TEXT,
-      input: [{ role: 'user', content: `Note content:\n${content}` }],
+      instructions: buildOrganizePromptText(),
+      input: [{ role: 'user', content: `Capture:\n${content}` }],
       stream: true,
       store: false,
     }),

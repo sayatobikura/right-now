@@ -1,5 +1,5 @@
 import { useReducer, useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import type { Note, NoteAction, AIProvider, AIOrganizeResult, AIConnectionResult } from '../types';
+import type { Note, NoteAction, AIProvider, AIOrganizeResult, AIConnectionResult, ItemStatus } from '../types';
 import * as NoteService from '../services/NoteService';
 import * as FirestoreNoteService from '../services/FirestoreNoteService';
 import * as AIService from '../services/AIService';
@@ -23,6 +23,24 @@ function noteReducer(state: Note[], action: NoteAction): Note[] {
       return state.map((n) =>
         n.id === action.id ? { ...n, isPinned: !n.isPinned } : n
       );
+    case 'COMPLETE_ITEM':
+      return state.map((n) =>
+        n.id === action.id
+          ? { ...n, status: 'done' as const, completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+          : n
+      );
+    case 'SET_STATUS':
+      return state.map((n) =>
+        n.id === action.id
+          ? { ...n, status: action.status, updatedAt: new Date().toISOString() }
+          : n
+      );
+    case 'SCHEDULE_ITEM':
+      return state.map((n) =>
+        n.id === action.id
+          ? { ...n, scheduledDate: action.scheduledDate, status: 'active' as const, updatedAt: new Date().toISOString() }
+          : n
+      );
     case 'LOAD_NOTES':
       return action.notes;
     default:
@@ -36,14 +54,13 @@ export function useNotes(uid: string | null) {
   const currentUid = useRef(uid);
   currentUid.current = uid;
 
-  // Load notes from Firestore (if logged in) or localStorage
   useEffect(() => {
     isInitialized.current = false;
     (async () => {
       let loaded: Note[];
       if (uid) {
         try {
-          loaded = await FirestoreNoteService.loadNotes(uid);
+          loaded = (await FirestoreNoteService.loadNotes(uid)).map(NoteService.migrateNote);
         } catch {
           loaded = NoteService.loadNotes();
         }
@@ -55,7 +72,6 @@ export function useNotes(uid: string | null) {
     })();
   }, [uid]);
 
-  // Persist to localStorage always (as fallback)
   useEffect(() => {
     if (isInitialized.current) {
       NoteService.saveNotes(notes);
@@ -65,7 +81,6 @@ export function useNotes(uid: string | null) {
   const addNote = useCallback((content: string) => {
     const note = NoteService.createNote(content);
     dispatch({ type: 'ADD_NOTE', note });
-    // Async sync to Firestore
     if (currentUid.current) {
       FirestoreNoteService.saveNote(currentUid.current, note).catch(() => {});
     }
@@ -91,8 +106,38 @@ export function useNotes(uid: string | null) {
 
   const togglePin = useCallback((id: string) => {
     dispatch({ type: 'TOGGLE_PIN', id });
-    // We don't know the new value here, so sync the full note after state update
-    // This is fine since Firestore write is async anyway
+  }, []);
+
+  const completeItem = useCallback((id: string) => {
+    dispatch({ type: 'COMPLETE_ITEM', id });
+    if (currentUid.current) {
+      FirestoreNoteService.updateNote(currentUid.current, id, {
+        status: 'done',
+        completedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }).catch(() => {});
+    }
+  }, []);
+
+  const setStatus = useCallback((id: string, status: ItemStatus) => {
+    dispatch({ type: 'SET_STATUS', id, status });
+    if (currentUid.current) {
+      FirestoreNoteService.updateNote(currentUid.current, id, {
+        status,
+        updatedAt: new Date().toISOString(),
+      }).catch(() => {});
+    }
+  }, []);
+
+  const scheduleItem = useCallback((id: string, scheduledDate: string) => {
+    dispatch({ type: 'SCHEDULE_ITEM', id, scheduledDate });
+    if (currentUid.current) {
+      FirestoreNoteService.updateNote(currentUid.current, id, {
+        scheduledDate,
+        status: 'active',
+        updatedAt: new Date().toISOString(),
+      }).catch(() => {});
+    }
   }, []);
 
   const allTags = useMemo(() => NoteService.getAllTags(notes), [notes]);
@@ -106,14 +151,28 @@ export function useNotes(uid: string | null) {
     });
   }, [notes]);
 
+  const todayItems = useMemo(
+    () => NoteService.sortByPriority(NoteService.getTodayItems(notes)),
+    [notes]
+  );
+
+  const inboxItems = useMemo(() => NoteService.getInboxItems(notes), [notes]);
+  const overdueCount = useMemo(() => NoteService.getOverdueItems(notes).length, [notes]);
+
   return {
     notes: sortedNotes,
     addNote,
     updateNote,
     deleteNote,
     togglePin,
+    completeItem,
+    setStatus,
+    scheduleItem,
     allTags,
     allCategories,
+    todayItems,
+    inboxItems,
+    overdueCount,
   };
 }
 

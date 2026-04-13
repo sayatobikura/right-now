@@ -1,15 +1,35 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { Note, AIOrganizeResult, AIConnectionResult, AIProvider } from '../types';
 
-const ORGANIZE_PROMPT = `You are a note organization assistant. Given a note's content, suggest relevant tags and a category.
+function buildOrganizePrompt(): string {
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const dayName = now.toLocaleDateString('en-US', { weekday: 'long' });
+
+  return `You are a personal productivity AI. Given a capture (note, idea, task, or tip), classify it and extract structured data.
+
+Today is ${dayName}, ${today}.
 
 Rules:
-- Tags: 1-5 short lowercase tags that describe the note's topics (e.g., "meeting", "idea", "shopping", "health")
-- Category: exactly one of: "work", "personal", "ideas", "journal", "reference", "learning"
-- Base your suggestions on the note's actual content
+1. "type": Classify as one of: "task" (actionable, has a verb/outcome), "idea" (creative thought, suggestion), "tip" (advice, best practice), "note" (informational, reference)
+2. "tags": 1-5 short lowercase tags describing topics
+3. "category": exactly one of: "work", "personal", "ideas", "journal", "reference", "learning"
+4. "priority": For tasks only — "high" (urgent/important/deadline soon), "medium" (important but not urgent), "low" (nice-to-have). null for non-tasks.
+5. "deadline": If the text mentions a date or relative time (e.g., "by Friday", "next Tuesday", "April 20"), convert to ISO date (YYYY-MM-DD). null if no deadline mentioned.
+6. "deadlineReason": Brief explanation of how you derived the deadline (e.g., "from 'by Friday'"). null if no deadline.
+7. "suggestedSchedule": For tasks, suggest when to work on it (ISO date). Usually 1 day before deadline, or today if urgent. null for non-tasks or no deadline.
 
 Respond with ONLY valid JSON:
-{ "tags": ["tag1", "tag2"], "category": "work" }`;
+{
+  "type": "task",
+  "tags": ["tag1", "tag2"],
+  "category": "work",
+  "priority": "high",
+  "deadline": "2026-04-15",
+  "deadlineReason": "from 'by Tuesday'",
+  "suggestedSchedule": "2026-04-14"
+}`;
+}
 
 const CONNECTIONS_PROMPT = `You are a note connection assistant. Given a target note and a list of other notes, find the most related notes and explain why they're connected.
 
@@ -30,7 +50,7 @@ async function callClaude(apiKey: string, system: string, userMessage: string): 
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
   const response = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 512,
+    max_tokens: 768,
     system,
     messages: [{ role: 'user', content: userMessage }],
   });
@@ -48,7 +68,7 @@ async function callOpenAI(apiKey: string, system: string, userMessage: string): 
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        max_tokens: 512,
+        max_tokens: 768,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: userMessage },
@@ -58,8 +78,6 @@ async function callOpenAI(apiKey: string, system: string, userMessage: string): 
   };
 
   let response = await doRequest();
-
-  // Retry once with backoff on rate limit
   if (response.status === 429) {
     await new Promise((r) => setTimeout(r, 3000));
     response = await doRequest();
@@ -88,7 +106,8 @@ export async function organizeNote(
   provider: AIProvider
 ): Promise<{ result: AIOrganizeResult | null; error: string | null }> {
   try {
-    const text = await callAI(apiKey, provider, ORGANIZE_PROMPT, `Note content:\n${content}`);
+    const prompt = buildOrganizePrompt();
+    const text = await callAI(apiKey, provider, prompt, `Capture:\n${content}`);
     if (!text) return { result: null, error: null };
     return { result: parseJSON<AIOrganizeResult>(text), error: null };
   } catch (err) {

@@ -55,14 +55,26 @@ async function saveNotes(notes) {
 
 // ── AI Service ──
 
-const ORGANIZE_PROMPT = `You are a note organization assistant. Given a note's content, suggest relevant tags and a category.
+function buildOrganizePrompt() {
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const dayName = now.toLocaleDateString('en-US', { weekday: 'long' });
+  return `You are a personal productivity AI. Given a capture (note, idea, task, or tip), classify it and extract structured data.
+
+Today is ${dayName}, ${today}.
 
 Rules:
-- Tags: 1-5 short lowercase tags (e.g., "meeting", "idea", "shopping")
-- Category: exactly one of: "work", "personal", "ideas", "journal", "reference", "learning"
+1. "type": Classify as one of: "task" (actionable), "idea" (creative thought), "tip" (advice), "note" (informational)
+2. "tags": 1-5 short lowercase tags
+3. "category": one of: "work", "personal", "ideas", "journal", "reference", "learning"
+4. "priority": For tasks — "high", "medium", or "low". null for non-tasks.
+5. "deadline": If text mentions a date (e.g., "by Friday"), convert to YYYY-MM-DD. null if none.
+6. "deadlineReason": How you derived the deadline. null if none.
+7. "suggestedSchedule": For tasks, suggest when to work on it (YYYY-MM-DD). null for non-tasks.
 
 Respond with ONLY valid JSON:
-{ "tags": ["tag1", "tag2"], "category": "work" }`;
+{"type":"task","tags":["tag1"],"category":"work","priority":"high","deadline":"2026-04-15","deadlineReason":"from 'by Tuesday'","suggestedSchedule":"2026-04-14"}`;
+}
 
 async function callClaude(apiKey, content) {
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -75,9 +87,9 @@ async function callClaude(apiKey, content) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 256,
-      system: ORGANIZE_PROMPT,
-      messages: [{ role: 'user', content: `Note content:\n${content}` }],
+      max_tokens: 768,
+      system: buildOrganizePrompt(),
+      messages: [{ role: 'user', content: `Capture:\n${content}` }],
     }),
   });
   if (!resp.ok) throw new Error(`Claude API error (${resp.status})`);
@@ -95,10 +107,10 @@ async function callOpenAIKey(apiKey, content) {
     },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
-      max_tokens: 256,
+      max_tokens: 768,
       messages: [
-        { role: 'system', content: ORGANIZE_PROMPT },
-        { role: 'user', content: `Note content:\n${content}` },
+        { role: 'system', content: buildOrganizePrompt() },
+        { role: 'user', content: `Capture:\n${content}` },
       ],
     }),
   });
@@ -112,10 +124,10 @@ async function callOpenAIKey(apiKey, content) {
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        max_tokens: 256,
+        max_tokens: 768,
         messages: [
-          { role: 'system', content: ORGANIZE_PROMPT },
-          { role: 'user', content: `Note content:\n${content}` },
+          { role: 'system', content: buildOrganizePrompt() },
+          { role: 'user', content: `Capture:\n${content}` },
         ],
       }),
     });
@@ -347,6 +359,12 @@ async function renderMain(authMode, apiKey, provider) {
       content,
       tags: [],
       category: null,
+      itemType: 'note',
+      priority: null,
+      deadline: null,
+      status: 'inbox',
+      scheduledDate: null,
+      completedAt: null,
       isPinned: false,
       createdAt: now,
       updatedAt: now,
@@ -360,6 +378,11 @@ async function renderMain(authMode, apiKey, provider) {
     if (result && !result.error) {
       note.tags = result.tags || [];
       note.category = result.category || null;
+      if (result.type) note.itemType = result.type;
+      if (result.priority) note.priority = result.priority;
+      if (result.deadline) note.deadline = result.deadline;
+      if (result.suggestedSchedule) note.scheduledDate = result.suggestedSchedule;
+      if (result.type === 'task' || result.deadline) note.status = 'active';
       note.updatedAt = new Date().toISOString();
       await saveNotes(notes);
       draw('saved');
