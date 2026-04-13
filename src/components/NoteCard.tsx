@@ -10,12 +10,12 @@ interface NoteCardProps {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  work: 'bg-accent/20 text-accent',
-  personal: 'bg-success/20 text-success',
-  ideas: 'bg-warning/20 text-warning',
-  journal: 'bg-[#c084fc]/20 text-[#c084fc]',
-  reference: 'bg-text-tertiary/20 text-text-secondary',
-  learning: 'bg-[#22d3ee]/20 text-[#22d3ee]',
+  work: 'bg-[#e8a0bf]/20 text-[#c97a9e]',
+  personal: 'bg-[#7cc9a0]/20 text-[#5aa67e]',
+  ideas: 'bg-[#f0c674]/20 text-[#c9a045]',
+  journal: 'bg-[#b8a9d4]/20 text-[#8a7bb0]',
+  reference: 'bg-[#a8c8e8]/20 text-[#6a9bc4]',
+  learning: 'bg-[#f4b8a0]/20 text-[#d08870]',
 };
 
 export default function NoteCard({ note, onDelete, onTogglePin, onSelect }: NoteCardProps) {
