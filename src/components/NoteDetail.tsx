@@ -39,24 +39,29 @@ export default function NoteDetail({
   onClose,
 }: NoteDetailProps) {
   const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(note.title ?? '');
   const [editContent, setEditContent] = useState(note.content);
 
   const handleSave = () => {
-    const trimmed = editContent.trim();
-    if (trimmed && trimmed !== note.content) {
-      onUpdate(note.id, { content: trimmed });
-    }
+    const updates: Partial<Note> = {};
+    const trimmedTitle = editTitle.trim();
+    const trimmedContent = editContent.trim();
+    if (trimmedTitle !== (note.title ?? '')) updates.title = trimmedTitle || null;
+    if (trimmedContent && trimmedContent !== note.content) updates.content = trimmedContent;
+    if (Object.keys(updates).length > 0) onUpdate(note.id, updates);
     setIsEditing(false);
   };
 
   const handleSaveAndReorganize = () => {
-    const trimmed = editContent.trim();
-    if (!trimmed) return;
-    if (trimmed !== note.content) {
-      onUpdate(note.id, { content: trimmed });
-    }
+    const trimmedContent = editContent.trim();
+    if (!trimmedContent) return;
+    const updates: Partial<Note> = {};
+    const trimmedTitle = editTitle.trim();
+    if (trimmedTitle !== (note.title ?? '')) updates.title = trimmedTitle || null;
+    if (trimmedContent !== note.content) updates.content = trimmedContent;
+    if (Object.keys(updates).length > 0) onUpdate(note.id, updates);
     setIsEditing(false);
-    onReorganize({ ...note, content: trimmed });
+    onReorganize({ ...note, content: trimmedContent });
   };
 
   const connectedNotes = connections
@@ -91,12 +96,20 @@ export default function NoteDetail({
 
         {/* Content */}
         {isEditing ? (
-          <div className="mb-4">
+          <div className="mb-4 space-y-2">
+            <input
+              type="text"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              placeholder="Title (short name)"
+              className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm font-medium text-text-primary focus:outline-none focus:border-accent"
+            />
             <textarea
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}
-              rows={5}
-              className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm text-text-primary resize-none focus:outline-none focus:border-accent"
+              rows={4}
+              placeholder="Description / details"
+              className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-xs text-text-secondary resize-none focus:outline-none focus:border-accent"
             />
             <div className="flex gap-2 mt-2">
               <button
@@ -125,9 +138,14 @@ export default function NoteDetail({
           <div className="mb-4">
             <div
               onClick={() => setIsEditing(true)}
-              className="text-sm text-text-primary whitespace-pre-wrap cursor-text hover:bg-surface-2/50 rounded-lg p-2 -m-2 transition-colors"
+              className="cursor-text hover:bg-surface-2/50 rounded-lg p-2 -m-2 transition-colors"
             >
-              {note.content}
+              {note.title && (
+                <p className="text-sm font-medium text-text-primary mb-1">{note.title}</p>
+              )}
+              <p className={`whitespace-pre-wrap ${note.title ? 'text-xs text-text-secondary' : 'text-sm text-text-primary'}`}>
+                {note.content}
+              </p>
             </div>
             <button
               onClick={() => onReorganize(note)}

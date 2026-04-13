@@ -216,16 +216,17 @@ function buildOrganizePromptText() {
 Today is ${dayName}, ${today}.
 
 Rules:
-1. "type": Classify as one of: "task" (actionable), "idea" (creative thought), "tip" (advice), "note" (informational)
-2. "tags": 1-5 short lowercase tags
-3. "category": one of: "work", "personal", "ideas", "journal", "reference", "learning"
-4. "priority": For tasks — "high", "medium", or "low". null for non-tasks.
-5. "deadline": If text mentions a date (e.g., "by Friday"), convert to YYYY-MM-DD. null if none.
-6. "deadlineReason": How you derived the deadline. null if none.
-7. "suggestedSchedule": For tasks, suggest when to work on it (YYYY-MM-DD). null for non-tasks.
+1. "title": A short clean summary (3-8 words) as a task/note name. Use action verbs for tasks (e.g., "Finish quarterly report"). For ideas/tips, use descriptive nouns (e.g., "Dark mode feature idea").
+2. "type": Classify as one of: "task" (actionable), "idea" (creative thought), "tip" (advice), "note" (informational)
+3. "tags": 1-5 short lowercase tags
+4. "category": one of: "work", "personal", "ideas", "journal", "reference", "learning"
+5. "priority": For tasks — "high", "medium", or "low". null for non-tasks.
+6. "deadline": If text mentions a date (e.g., "by Friday"), convert to YYYY-MM-DD. null if none.
+7. "deadlineReason": How you derived the deadline. null if none.
+8. "suggestedSchedule": For tasks, suggest when to work on it (YYYY-MM-DD). null for non-tasks.
 
 Respond with ONLY valid JSON:
-{"type":"task","tags":["tag1"],"category":"work","priority":"high","deadline":"${today}","deadlineReason":"from text","suggestedSchedule":"${today}"}`;
+{"title":"Finish quarterly report","type":"task","tags":["report"],"category":"work","priority":"high","deadline":"${today}","deadlineReason":"from text","suggestedSchedule":"${today}"}`;
 }
 
 async function callChatGPTOAuth(content) {

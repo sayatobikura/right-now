@@ -71,9 +71,12 @@ export default function ItemRow({ note, onComplete, onSelect }: ItemRowProps) {
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className={`text-sm truncate ${isDone ? 'line-through text-text-tertiary' : 'text-text-primary'}`}>
-          {note.content}
+        <p className={`text-sm truncate font-medium ${isDone ? 'line-through text-text-tertiary' : 'text-text-primary'}`}>
+          {note.title || note.content}
         </p>
+        {note.title && (
+          <p className="text-xs text-text-secondary truncate mt-0.5">{note.content}</p>
+        )}
       </div>
 
       {/* Badges */}

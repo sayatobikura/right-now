@@ -64,16 +64,17 @@ function buildOrganizePrompt() {
 Today is ${dayName}, ${today}.
 
 Rules:
-1. "type": Classify as one of: "task" (actionable), "idea" (creative thought), "tip" (advice), "note" (informational)
-2. "tags": 1-5 short lowercase tags
-3. "category": one of: "work", "personal", "ideas", "journal", "reference", "learning"
-4. "priority": For tasks — "high", "medium", or "low". null for non-tasks.
-5. "deadline": If text mentions a date (e.g., "by Friday"), convert to YYYY-MM-DD. null if none.
-6. "deadlineReason": How you derived the deadline. null if none.
-7. "suggestedSchedule": For tasks, suggest when to work on it (YYYY-MM-DD). null for non-tasks.
+1. "title": A short clean summary (3-8 words) as a task/note name. Use action verbs for tasks (e.g., "Finish quarterly report"). For ideas/tips, use descriptive nouns (e.g., "Dark mode feature idea").
+2. "type": Classify as one of: "task" (actionable), "idea" (creative thought), "tip" (advice), "note" (informational)
+3. "tags": 1-5 short lowercase tags
+4. "category": one of: "work", "personal", "ideas", "journal", "reference", "learning"
+5. "priority": For tasks — "high", "medium", or "low". null for non-tasks.
+6. "deadline": If text mentions a date (e.g., "by Friday"), convert to YYYY-MM-DD. null if none.
+7. "deadlineReason": How you derived the deadline. null if none.
+8. "suggestedSchedule": For tasks, suggest when to work on it (YYYY-MM-DD). null for non-tasks.
 
 Respond with ONLY valid JSON:
-{"type":"task","tags":["tag1"],"category":"work","priority":"high","deadline":"2026-04-15","deadlineReason":"from 'by Tuesday'","suggestedSchedule":"2026-04-14"}`;
+{"title":"Finish quarterly report","type":"task","tags":["report"],"category":"work","priority":"high","deadline":"2026-04-15","deadlineReason":"from 'by Tuesday'","suggestedSchedule":"2026-04-14"}`;
 }
 
 async function callClaude(apiKey, content) {
@@ -336,7 +337,8 @@ async function renderMain(authMode, apiKey, provider) {
         <span class="provider">${TYPE_ICONS[n.itemType || 'note']} ${n.itemType || 'note'}</span>
       </div>
       <div style="padding:12px 16px;">
-        <textarea id="edit-content" rows="4" style="width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text-primary);font-size:14px;font-family:inherit;resize:none;outline:none;">${escHtml(n.content)}</textarea>
+        <input id="edit-title" type="text" placeholder="Title (short name)" value="${escHtml(n.title || '')}" style="width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text-primary);font-size:14px;font-weight:500;font-family:inherit;outline:none;margin-bottom:6px;" />
+        <textarea id="edit-content" rows="3" placeholder="Description / details" style="width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text-secondary);font-size:13px;font-family:inherit;resize:none;outline:none;">${escHtml(n.content)}</textarea>
         <div style="display:flex;gap:6px;margin-top:8px;">
           <button class="btn btn-primary" id="save-edit">Save</button>
           <button class="btn" id="save-reorg" style="background:var(--surface-2);color:var(--text-primary);">Save & Re-organize</button>
@@ -372,21 +374,27 @@ async function renderMain(authMode, apiKey, provider) {
 
     // Save content only
     document.getElementById('save-edit').addEventListener('click', async () => {
+      const title = document.getElementById('edit-title').value.trim();
       const content = document.getElementById('edit-content').value.trim();
-      if (content) { n.content = content; n.updatedAt = new Date().toISOString(); await saveNotes(notes); drawDetail(n, 'saved'); setTimeout(() => drawDetail(n, null), 1500); }
+      if (content) {
+        n.title = title || null; n.content = content; n.updatedAt = new Date().toISOString();
+        await saveNotes(notes); drawDetail(n, 'saved'); setTimeout(() => drawDetail(n, null), 1500);
+      }
     });
 
     // Save & re-organize
     document.getElementById('save-reorg').addEventListener('click', async () => {
       const content = document.getElementById('edit-content').value.trim();
       if (!content) return;
-      n.content = content; n.updatedAt = new Date().toISOString();
+      const title = document.getElementById('edit-title').value.trim();
+      n.title = title || null; n.content = content; n.updatedAt = new Date().toISOString();
       await saveNotes(notes);
       drawDetail(n, 'reorganizing');
       const result = await organizeNote(authMode, apiKey, provider, content);
       if (result && !result.error) {
         n.tags = result.tags || [];
         n.category = result.category || null;
+        if (result.title) n.title = result.title;
         if (result.type) n.itemType = result.type;
         if (result.priority !== undefined) n.priority = result.priority;
         if (result.deadline !== undefined) n.deadline = result.deadline;
@@ -455,11 +463,14 @@ async function renderMain(authMode, apiKey, provider) {
 
     // Build note item HTML with click-to-edit
     function noteItemHtml(n, showDelete, deleteIdx) {
+      const title = n.title || n.content;
+      const desc = n.title ? n.content : '';
       return `
         <div class="note-item" data-edit-id="${n.id}" style="cursor:pointer;">
           ${n.itemType === 'task' ? `<button class="check ${n.status === 'done' ? 'checked' : ''}" data-complete="${n.id}"></button>` : `<span class="type-icon">${TYPE_ICONS[n.itemType || 'note']}</span>`}
           <div class="item-body">
-            <div class="note-content ${n.status === 'done' ? 'done' : ''}">${escHtml(n.content)}</div>
+            <div class="note-title ${n.status === 'done' ? 'done' : ''}">${escHtml(title)}</div>
+            ${desc ? `<div class="note-desc">${escHtml(desc)}</div>` : ''}
             <div class="note-meta">
               ${priorityBadge(n.priority)}
               ${deadlineBadge(n.deadline)}
@@ -598,6 +609,7 @@ async function renderMain(authMode, apiKey, provider) {
     if (result && !result.error) {
       note.tags = result.tags || [];
       note.category = result.category || null;
+      if (result.title) note.title = result.title;
       if (result.type) note.itemType = result.type;
       if (result.priority) note.priority = result.priority;
       if (result.deadline) note.deadline = result.deadline;

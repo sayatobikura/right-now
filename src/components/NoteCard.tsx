@@ -106,8 +106,13 @@ export default function NoteCard({ note, onDelete, onTogglePin, onSelect, onComp
         </div>
       </div>
 
-      {/* Content */}
-      <p className={`text-sm whitespace-pre-wrap line-clamp-4 mb-2 ${isDone ? 'line-through text-text-tertiary' : 'text-text-primary'}`}>
+      {/* Title + Description */}
+      {note.title && (
+        <p className={`text-sm font-medium mb-1 ${isDone ? 'line-through text-text-tertiary' : 'text-text-primary'}`}>
+          {note.title}
+        </p>
+      )}
+      <p className={`text-xs whitespace-pre-wrap line-clamp-3 mb-2 ${isDone ? 'line-through text-text-tertiary' : note.title ? 'text-text-secondary' : 'text-text-primary text-sm'}`}>
         {note.content}
       </p>
 

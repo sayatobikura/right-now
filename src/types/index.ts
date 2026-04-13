@@ -6,6 +6,7 @@ export type ItemStatus = 'inbox' | 'active' | 'done' | 'archived';
 
 export interface Note {
   id: string;
+  title?: string | null;
   content: string;
   tags: string[];
   category: string | null;
@@ -22,6 +23,7 @@ export interface Note {
 }
 
 export interface AIOrganizeResult {
+  title?: string;
   tags: string[];
   category: string;
   type?: ItemType;

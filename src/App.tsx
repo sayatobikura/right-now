@@ -44,6 +44,7 @@ export default function App() {
             tags: result.tags,
             category: result.category,
           };
+          if (result.title) updates.title = result.title;
           if (result.type) updates.itemType = result.type;
           if (result.priority) updates.priority = result.priority;
           if (result.deadline) updates.deadline = result.deadline;
@@ -76,6 +77,7 @@ export default function App() {
           tags: result.tags,
           category: result.category,
         };
+        if (result.title) updates.title = result.title;
         if (result.type) updates.itemType = result.type;
         if (result.priority !== undefined) updates.priority = result.priority;
         if (result.deadline !== undefined) updates.deadline = result.deadline;

@@ -11,18 +11,20 @@ function buildOrganizePrompt(): string {
 Today is ${dayName}, ${today}.
 
 Rules:
-1. "type": Classify as one of: "task" (actionable, has a verb/outcome), "idea" (creative thought, suggestion), "tip" (advice, best practice), "note" (informational, reference)
-2. "tags": 1-5 short lowercase tags describing topics
-3. "category": exactly one of: "work", "personal", "ideas", "journal", "reference", "learning"
-4. "priority": For tasks only — "high" (urgent/important/deadline soon), "medium" (important but not urgent), "low" (nice-to-have). null for non-tasks.
-5. "deadline": If the text mentions a date or relative time (e.g., "by Friday", "next Tuesday", "April 20"), convert to ISO date (YYYY-MM-DD). null if no deadline mentioned.
-6. "deadlineReason": Brief explanation of how you derived the deadline (e.g., "from 'by Friday'"). null if no deadline.
-7. "suggestedSchedule": For tasks, suggest when to work on it (ISO date). Usually 1 day before deadline, or today if urgent. null for non-tasks or no deadline.
+1. "title": A short, clean summary (3-8 words) that works as a task/note name. Use simple action verbs for tasks (e.g., "Finish quarterly report", "Buy groceries", "Review PR #42"). For ideas/tips, use a descriptive noun phrase (e.g., "Dark mode feature idea", "Git rebase workflow tip").
+2. "type": Classify as one of: "task" (actionable, has a verb/outcome), "idea" (creative thought, suggestion), "tip" (advice, best practice), "note" (informational, reference)
+3. "tags": 1-5 short lowercase tags describing topics
+4. "category": exactly one of: "work", "personal", "ideas", "journal", "reference", "learning"
+5. "priority": For tasks only — "high" (urgent/important/deadline soon), "medium" (important but not urgent), "low" (nice-to-have). null for non-tasks.
+6. "deadline": If the text mentions a date or relative time (e.g., "by Friday", "next Tuesday", "April 20"), convert to ISO date (YYYY-MM-DD). null if no deadline mentioned.
+7. "deadlineReason": Brief explanation of how you derived the deadline (e.g., "from 'by Friday'"). null if no deadline.
+8. "suggestedSchedule": For tasks, suggest when to work on it (ISO date). Usually 1 day before deadline, or today if urgent. null for non-tasks or no deadline.
 
 Respond with ONLY valid JSON:
 {
+  "title": "Finish quarterly report",
   "type": "task",
-  "tags": ["tag1", "tag2"],
+  "tags": ["report", "work"],
   "category": "work",
   "priority": "high",
   "deadline": "2026-04-15",
