@@ -6,7 +6,7 @@ const OAUTH_AUTH_URL = 'https://auth.openai.com/oauth/authorize';
 const OAUTH_TOKEN_URL = 'https://auth.openai.com/oauth/token';
 const OAUTH_SCOPE = 'openai.chat.completions openai.responses openai.responses.stream';
 const OAUTH_AUDIENCE = 'https://api.openai.com/v1';
-const OAUTH_REDIRECT_URI = 'http://localhost/callback';
+const OAUTH_REDIRECT_URI = 'http://localhost:19284/auth/callback';
 
 const OAUTH_KEYS = {
   accessToken: 'oauth_access_token',

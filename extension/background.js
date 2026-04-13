@@ -1,7 +1,7 @@
 // Background service worker
 // Listens for OAuth callback redirects to localhost and relays the auth code
 
-const OAUTH_REDIRECT_BASE = 'http://localhost/callback';
+const OAUTH_REDIRECT_BASE = 'http://localhost:19284/auth/callback';
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (!changeInfo.url) return;
