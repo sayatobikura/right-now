@@ -259,36 +259,117 @@ function renderSetup(savedProvider) {
   draw();
 }
 
+// ── Helpers for Today view ──
+
+const PRIORITY_COLORS = {
+  high: 'background:rgba(232,116,97,0.15);color:#d05a48;',
+  medium: 'background:rgba(240,198,116,0.15);color:#c9a045;',
+  low: 'background:rgba(124,201,160,0.15);color:#5aa67e;',
+};
+const TYPE_ICONS = { task: '☑', idea: '💡', tip: '⭐', note: '📝' };
+
+function getTodayStr() { return new Date().toISOString().split('T')[0]; }
+
+function getTodayItems(notes) {
+  const today = getTodayStr();
+  return notes.filter(n => {
+    const s = n.status || 'active';
+    if (s === 'done' || s === 'archived') return false;
+    if (n.deadline && n.deadline <= today) return true;
+    if (n.scheduledDate && n.scheduledDate <= today) return true;
+    if (n.itemType === 'task' && n.priority === 'high' && s === 'active') return true;
+    return false;
+  }).sort((a, b) => {
+    const today = getTodayStr();
+    const aOD = a.deadline && a.deadline < today;
+    const bOD = b.deadline && b.deadline < today;
+    if (aOD && !bOD) return -1;
+    if (!aOD && bOD) return 1;
+    const pw = { high: 3, medium: 2, low: 1 };
+    return (pw[b.priority] || 0) - (pw[a.priority] || 0);
+  });
+}
+
+function deadlineBadge(deadline) {
+  if (!deadline) return '';
+  const today = getTodayStr();
+  if (deadline < today) {
+    const days = Math.ceil((Date.now() - new Date(deadline).getTime()) / 86400000);
+    return `<span class="badge badge-overdue">${days}d overdue</span>`;
+  }
+  if (deadline === today) return '<span class="badge badge-warning">Due today</span>';
+  const days = Math.ceil((new Date(deadline).getTime() - Date.now()) / 86400000);
+  return `<span class="badge badge-default">in ${days}d</span>`;
+}
+
+function priorityBadge(priority) {
+  if (!priority) return '';
+  return `<span class="badge" style="${PRIORITY_COLORS[priority]}">${priority}</span>`;
+}
+
 // ── Render: Main ──
 
 async function renderMain(authMode, apiKey, provider) {
   const notes = await getNotes();
+  let currentTab = 'today';
 
   function draw(status) {
     const providerLabel = authMode === 'oauth' ? 'ChatGPT' : provider === 'claude' ? 'Claude' : 'OpenAI';
-    const noteItems = notes
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 20)
-      .map((n, i) => `
-        <div class="note-item">
-          <div class="note-content">${escHtml(n.content)}</div>
-          <div class="note-meta">
-            ${n.category ? `<span class="note-category">${n.category}</span>` : ''}
-            ${n.tags?.map((t) => `<span class="note-tag">#${t}</span>`).join('') || ''}
-            <span class="note-time">${timeAgo(n.createdAt)}</span>
-            <button class="note-delete" data-idx="${i}" title="Delete">&times;</button>
-          </div>
-        </div>
-      `)
-      .join('');
+    const todayItems = getTodayItems(notes);
+    const overdueCount = notes.filter(n => n.deadline && n.deadline < getTodayStr() && (n.status || 'active') !== 'done').length;
 
     let statusHtml = '';
     if (status === 'organizing') {
-      statusHtml = '<div class="status organizing"><div class="spinner"></div> AI organizing...</div>';
+      statusHtml = '<div class="status organizing"><div class="spinner"></div> AI classifying...</div>';
     } else if (status?.startsWith('error:')) {
       statusHtml = `<div class="status error">${escHtml(status.slice(6))}</div>`;
     } else if (status === 'saved') {
-      statusHtml = '<div class="status success">Note saved & organized!</div>';
+      statusHtml = '<div class="status success">Saved & classified!</div>';
+    }
+
+    let contentHtml = '';
+    if (currentTab === 'today') {
+      if (todayItems.length === 0) {
+        contentHtml = '<div class="empty">✨ All clear today</div>';
+      } else {
+        contentHtml = todayItems.map((n, i) => `
+          <div class="note-item today-item" data-note-idx="${i}">
+            ${n.itemType === 'task' ? `<button class="check ${n.status === 'done' ? 'checked' : ''}" data-complete="${n.id}"></button>` : `<span class="type-icon">${TYPE_ICONS[n.itemType || 'note']}</span>`}
+            <div class="item-body">
+              <div class="note-content ${n.status === 'done' ? 'done' : ''}">${escHtml(n.content)}</div>
+              <div class="note-meta">
+                ${priorityBadge(n.priority)}
+                ${deadlineBadge(n.deadline)}
+                ${n.category ? `<span class="note-category">${n.category}</span>` : ''}
+              </div>
+            </div>
+          </div>
+        `).join('');
+        contentHtml = `<div class="section-label">Today's Focus${overdueCount > 0 ? ` <span class="badge badge-overdue">${overdueCount} overdue</span>` : ''}</div>` + contentHtml;
+      }
+    } else {
+      const sorted = [...notes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 20);
+      if (sorted.length === 0) {
+        contentHtml = '<div class="empty">No notes yet. Start capturing!</div>';
+      } else {
+        contentHtml = sorted.map((n, i) => `
+          <div class="note-item">
+            <span class="type-icon">${TYPE_ICONS[n.itemType || 'note']}</span>
+            <div class="item-body">
+              <div class="note-content ${n.status === 'done' ? 'done' : ''}">${escHtml(n.content)}</div>
+              <div class="note-meta">
+                ${priorityBadge(n.priority)}
+                ${deadlineBadge(n.deadline)}
+                ${n.category ? `<span class="note-category">${n.category}</span>` : ''}
+                ${n.tags?.map(t => `<span class="note-tag">#${t}</span>`).join('') || ''}
+                <span class="note-time">${timeAgo(n.createdAt)}</span>
+                <button class="note-delete" data-idx="${i}" title="Delete">&times;</button>
+              </div>
+            </div>
+          </div>
+        `).join('');
+        contentHtml = `<div class="section-label">All Notes (${notes.length})</div>` + contentHtml;
+      }
     }
 
     app.innerHTML = `
@@ -296,26 +377,26 @@ async function renderMain(authMode, apiKey, provider) {
         <h1>⚡ Right Now</h1>
         <span class="provider" id="change-key">${providerLabel} ▾</span>
       </div>
+      <div class="tab-bar">
+        <button class="tab ${currentTab === 'today' ? 'active' : ''}" data-tab="today">Today${overdueCount > 0 ? ` <span class="tab-badge-red">${overdueCount}</span>` : ''}</button>
+        <button class="tab ${currentTab === 'notes' ? 'active' : ''}" data-tab="notes">Notes</button>
+      </div>
       <div class="editor">
-        <textarea id="note-input" placeholder="What's on your mind?" rows="3"></textarea>
+        <textarea id="note-input" placeholder="What's on your mind?" rows="2"></textarea>
         <div class="editor-actions">
           <span class="editor-hint">Ctrl+Enter to save</span>
           <button class="btn btn-primary" id="save-note" disabled>Save</button>
         </div>
       </div>
       ${statusHtml}
-      ${notes.length > 0
-        ? `<div class="notes-header">Recent (${notes.length})</div>${noteItems}`
-        : '<div class="empty">No notes yet. Start capturing!</div>'
-      }
+      ${contentHtml}
     `;
 
+    // Bind events
     const textarea = document.getElementById('note-input');
     const saveBtn = document.getElementById('save-note');
 
-    textarea.addEventListener('input', () => {
-      saveBtn.disabled = !textarea.value.trim();
-    });
+    textarea.addEventListener('input', () => { saveBtn.disabled = !textarea.value.trim(); });
     textarea.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && textarea.value.trim()) {
         e.preventDefault();
@@ -329,19 +410,37 @@ async function renderMain(authMode, apiKey, provider) {
       renderSetup(provider !== 'chatgpt-oauth' ? provider : 'claude');
     });
 
-    app.querySelectorAll('.note-delete').forEach((btn) => {
+    // Tab switching
+    app.querySelectorAll('.tab').forEach(btn => {
+      btn.addEventListener('click', () => { currentTab = btn.dataset.tab; draw(null); });
+    });
+
+    // Complete buttons
+    app.querySelectorAll('[data-complete]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.complete;
+        const n = notes.find(x => x.id === id);
+        if (n && n.status !== 'done') {
+          n.status = 'done';
+          n.completedAt = new Date().toISOString();
+          n.updatedAt = new Date().toISOString();
+          await saveNotes(notes);
+          draw(null);
+        }
+      });
+    });
+
+    // Delete buttons
+    app.querySelectorAll('.note-delete').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const idx = parseInt(btn.dataset.idx);
         const sorted = [...notes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         const noteId = sorted[idx]?.id;
         if (!noteId) return;
-        const i = notes.findIndex((n) => n.id === noteId);
-        if (i >= 0) {
-          notes.splice(i, 1);
-          await saveNotes(notes);
-          draw(null);
-        }
+        const i = notes.findIndex(n => n.id === noteId);
+        if (i >= 0) { notes.splice(i, 1); await saveNotes(notes); draw(null); }
       });
     });
 
