@@ -309,11 +309,137 @@ function priorityBadge(priority) {
 
 // ── Render: Main ──
 
+const ALL_TYPES = ['task', 'idea', 'tip', 'note'];
+const ALL_PRIORITIES = ['high', 'medium', 'low', 'none'];
+const ALL_CATEGORIES = ['work', 'personal', 'ideas', 'journal', 'reference', 'learning'];
+
 async function renderMain(authMode, apiKey, provider) {
   const notes = await getNotes();
   let currentTab = 'today';
+  let editingNote = null; // note being edited
 
+  // ── Detail/Edit view ──
+  function drawDetail(n, status) {
+    const pills = (list, current, field) => list.map(v => {
+      const active = (field === 'priority' && v === 'none') ? !n[field] : n[field] === v;
+      const style = active ? 'background:var(--accent);color:white;' : 'background:var(--surface-2);color:var(--text-secondary);';
+      return `<button class="pill" data-field="${field}" data-value="${v}" style="${style}">${v}</button>`;
+    }).join('');
+
+    let statusHtml = '';
+    if (status === 'reorganizing') statusHtml = '<div class="status organizing"><div class="spinner"></div> Re-organizing...</div>';
+    else if (status === 'saved') statusHtml = '<div class="status success">Updated!</div>';
+
+    app.innerHTML = `
+      <div class="header">
+        <button id="back-btn" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:13px;">← Back</button>
+        <span class="provider">${TYPE_ICONS[n.itemType || 'note']} ${n.itemType || 'note'}</span>
+      </div>
+      <div style="padding:12px 16px;">
+        <textarea id="edit-content" rows="4" style="width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text-primary);font-size:13px;font-family:inherit;resize:none;outline:none;">${escHtml(n.content)}</textarea>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <button class="btn btn-primary" id="save-edit">Save</button>
+          <button class="btn" id="save-reorg" style="background:var(--surface-2);color:var(--text-primary);">Save & Re-organize</button>
+        </div>
+        ${statusHtml}
+        <div style="margin-top:12px;">
+          <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px;">Type</div>
+          <div class="pill-group">${pills(ALL_TYPES, n.itemType, 'itemType')}</div>
+        </div>
+        <div style="margin-top:8px;">
+          <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px;">Priority</div>
+          <div class="pill-group">${pills(ALL_PRIORITIES, n.priority, 'priority')}</div>
+        </div>
+        <div style="margin-top:8px;">
+          <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px;">Category</div>
+          <div class="pill-group">${pills(ALL_CATEGORIES, n.category, 'category')}</div>
+        </div>
+        <div style="margin-top:8px;">
+          <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px;">Deadline</div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <input type="date" id="edit-deadline" value="${n.deadline || ''}" style="background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;color:var(--text-primary);outline:none;" />
+            ${n.deadline ? '<button id="clear-deadline" style="font-size:10px;color:var(--text-tertiary);background:none;border:none;cursor:pointer;">clear</button>' : ''}
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          ${n.tags?.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;">${n.tags.map(t => `<span class="note-tag">#${t}</span>`).join('')}</div>` : ''}
+        </div>
+      </div>
+    `;
+
+    // Back
+    document.getElementById('back-btn').addEventListener('click', () => { editingNote = null; draw(null); });
+
+    // Save content only
+    document.getElementById('save-edit').addEventListener('click', async () => {
+      const content = document.getElementById('edit-content').value.trim();
+      if (content) { n.content = content; n.updatedAt = new Date().toISOString(); await saveNotes(notes); drawDetail(n, 'saved'); setTimeout(() => drawDetail(n, null), 1500); }
+    });
+
+    // Save & re-organize
+    document.getElementById('save-reorg').addEventListener('click', async () => {
+      const content = document.getElementById('edit-content').value.trim();
+      if (!content) return;
+      n.content = content; n.updatedAt = new Date().toISOString();
+      await saveNotes(notes);
+      drawDetail(n, 'reorganizing');
+      const result = await organizeNote(authMode, apiKey, provider, content);
+      if (result && !result.error) {
+        n.tags = result.tags || [];
+        n.category = result.category || null;
+        if (result.type) n.itemType = result.type;
+        if (result.priority !== undefined) n.priority = result.priority;
+        if (result.deadline !== undefined) n.deadline = result.deadline;
+        if (result.suggestedSchedule) n.scheduledDate = result.suggestedSchedule;
+        if (result.type === 'task' || result.deadline) n.status = 'active';
+        n.updatedAt = new Date().toISOString();
+        await saveNotes(notes);
+        drawDetail(n, 'saved');
+        setTimeout(() => drawDetail(n, null), 1500);
+      } else {
+        drawDetail(n, null);
+      }
+    });
+
+    // Pill buttons (type, priority, category)
+    app.querySelectorAll('.pill').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const field = btn.dataset.field;
+        let value = btn.dataset.value;
+        if (field === 'priority' && value === 'none') value = null;
+        n[field] = value;
+        n.updatedAt = new Date().toISOString();
+        await saveNotes(notes);
+        drawDetail(n, null);
+      });
+    });
+
+    // Deadline
+    const deadlineInput = document.getElementById('edit-deadline');
+    if (deadlineInput) {
+      deadlineInput.addEventListener('change', async (e) => {
+        n.deadline = e.target.value || null;
+        n.updatedAt = new Date().toISOString();
+        await saveNotes(notes);
+        drawDetail(n, null);
+      });
+    }
+    const clearBtn = document.getElementById('clear-deadline');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', async () => {
+        n.deadline = null;
+        n.updatedAt = new Date().toISOString();
+        await saveNotes(notes);
+        drawDetail(n, null);
+      });
+    }
+  }
+
+  // ── List view ──
   function draw(status) {
+    // If editing a note, show detail view
+    if (editingNote) { drawDetail(editingNote, status); return; }
+
     const providerLabel = authMode === 'oauth' ? 'ChatGPT' : provider === 'claude' ? 'Claude' : 'OpenAI';
     const todayItems = getTodayItems(notes);
     const overdueCount = notes.filter(n => n.deadline && n.deadline < getTodayStr() && (n.status || 'active') !== 'done').length;
@@ -327,48 +453,40 @@ async function renderMain(authMode, apiKey, provider) {
       statusHtml = '<div class="status success">Saved & classified!</div>';
     }
 
+    // Build note item HTML with click-to-edit
+    function noteItemHtml(n, showDelete, deleteIdx) {
+      return `
+        <div class="note-item" data-edit-id="${n.id}" style="cursor:pointer;">
+          ${n.itemType === 'task' ? `<button class="check ${n.status === 'done' ? 'checked' : ''}" data-complete="${n.id}"></button>` : `<span class="type-icon">${TYPE_ICONS[n.itemType || 'note']}</span>`}
+          <div class="item-body">
+            <div class="note-content ${n.status === 'done' ? 'done' : ''}">${escHtml(n.content)}</div>
+            <div class="note-meta">
+              ${priorityBadge(n.priority)}
+              ${deadlineBadge(n.deadline)}
+              ${n.category ? `<span class="note-category">${n.category}</span>` : ''}
+              ${n.tags?.map(t => `<span class="note-tag">#${t}</span>`).join('') || ''}
+              <span class="note-time">${timeAgo(n.createdAt)}</span>
+              ${showDelete ? `<button class="note-delete" data-idx="${deleteIdx}" title="Delete">&times;</button>` : ''}
+            </div>
+          </div>
+        </div>`;
+    }
+
     let contentHtml = '';
     if (currentTab === 'today') {
       if (todayItems.length === 0) {
         contentHtml = '<div class="empty">✨ All clear today</div>';
       } else {
-        contentHtml = todayItems.map((n, i) => `
-          <div class="note-item today-item" data-note-idx="${i}">
-            ${n.itemType === 'task' ? `<button class="check ${n.status === 'done' ? 'checked' : ''}" data-complete="${n.id}"></button>` : `<span class="type-icon">${TYPE_ICONS[n.itemType || 'note']}</span>`}
-            <div class="item-body">
-              <div class="note-content ${n.status === 'done' ? 'done' : ''}">${escHtml(n.content)}</div>
-              <div class="note-meta">
-                ${priorityBadge(n.priority)}
-                ${deadlineBadge(n.deadline)}
-                ${n.category ? `<span class="note-category">${n.category}</span>` : ''}
-              </div>
-            </div>
-          </div>
-        `).join('');
-        contentHtml = `<div class="section-label">Today's Focus${overdueCount > 0 ? ` <span class="badge badge-overdue">${overdueCount} overdue</span>` : ''}</div>` + contentHtml;
+        contentHtml = `<div class="section-label">Today's Focus${overdueCount > 0 ? ` <span class="badge badge-overdue">${overdueCount} overdue</span>` : ''}</div>`;
+        contentHtml += todayItems.map(n => noteItemHtml(n, false, 0)).join('');
       }
     } else {
       const sorted = [...notes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 20);
       if (sorted.length === 0) {
         contentHtml = '<div class="empty">No notes yet. Start capturing!</div>';
       } else {
-        contentHtml = sorted.map((n, i) => `
-          <div class="note-item">
-            <span class="type-icon">${TYPE_ICONS[n.itemType || 'note']}</span>
-            <div class="item-body">
-              <div class="note-content ${n.status === 'done' ? 'done' : ''}">${escHtml(n.content)}</div>
-              <div class="note-meta">
-                ${priorityBadge(n.priority)}
-                ${deadlineBadge(n.deadline)}
-                ${n.category ? `<span class="note-category">${n.category}</span>` : ''}
-                ${n.tags?.map(t => `<span class="note-tag">#${t}</span>`).join('') || ''}
-                <span class="note-time">${timeAgo(n.createdAt)}</span>
-                <button class="note-delete" data-idx="${i}" title="Delete">&times;</button>
-              </div>
-            </div>
-          </div>
-        `).join('');
-        contentHtml = `<div class="section-label">All Notes (${notes.length})</div>` + contentHtml;
+        contentHtml = `<div class="section-label">All Notes (${notes.length})</div>`;
+        contentHtml += sorted.map((n, i) => noteItemHtml(n, true, i)).join('');
       }
     }
 
@@ -395,13 +513,9 @@ async function renderMain(authMode, apiKey, provider) {
     // Bind events
     const textarea = document.getElementById('note-input');
     const saveBtn = document.getElementById('save-note');
-
     textarea.addEventListener('input', () => { saveBtn.disabled = !textarea.value.trim(); });
     textarea.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && textarea.value.trim()) {
-        e.preventDefault();
-        handleSave();
-      }
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && textarea.value.trim()) { e.preventDefault(); handleSave(); }
     });
     saveBtn.addEventListener('click', handleSave);
 
@@ -415,6 +529,16 @@ async function renderMain(authMode, apiKey, provider) {
       btn.addEventListener('click', () => { currentTab = btn.dataset.tab; draw(null); });
     });
 
+    // Click to edit
+    app.querySelectorAll('[data-edit-id]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('[data-complete]') || e.target.closest('.note-delete')) return;
+        const id = el.dataset.editId;
+        const n = notes.find(x => x.id === id);
+        if (n) { editingNote = n; drawDetail(n, null); }
+      });
+    });
+
     // Complete buttons
     app.querySelectorAll('[data-complete]').forEach(btn => {
       btn.addEventListener('click', async (e) => {
@@ -422,11 +546,8 @@ async function renderMain(authMode, apiKey, provider) {
         const id = btn.dataset.complete;
         const n = notes.find(x => x.id === id);
         if (n && n.status !== 'done') {
-          n.status = 'done';
-          n.completedAt = new Date().toISOString();
-          n.updatedAt = new Date().toISOString();
-          await saveNotes(notes);
-          draw(null);
+          n.status = 'done'; n.completedAt = new Date().toISOString(); n.updatedAt = new Date().toISOString();
+          await saveNotes(notes); draw(null);
         }
       });
     });
