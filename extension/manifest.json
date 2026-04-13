@@ -1,9 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Right Now — Quick Notes",
-  "version": "1.0.0",
-  "description": "Capture notes from anywhere. AI auto-organizes them.",
-  "permissions": ["storage"],
+  "version": "1.1.0",
+  "description": "Capture notes from anywhere. AI auto-organizes them. Works with ChatGPT subscription.",
+  "permissions": ["storage", "identity"],
+  "host_permissions": [
+    "https://auth.openai.com/*",
+    "https://chatgpt.com/*",
+    "https://api.openai.com/*",
+    "https://api.anthropic.com/*"
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_title": "Right Now"

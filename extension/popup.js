@@ -3,6 +3,7 @@
 const KEYS = {
   apiKey: 'rightnow_api_key',
   provider: 'rightnow_provider',
+  authMode: 'rightnow_auth_mode', // 'oauth' | 'apikey'
   notes: 'rightnow_notes',
 };
 
@@ -14,16 +15,33 @@ async function setStorage(data) {
   return chrome.storage.local.set(data);
 }
 
-async function getApiKey() {
-  const data = await getStorage([KEYS.apiKey, KEYS.provider]);
+async function getAuthConfig() {
+  const data = await getStorage([KEYS.apiKey, KEYS.provider, KEYS.authMode]);
   return {
     apiKey: data[KEYS.apiKey] || null,
     provider: data[KEYS.provider] || 'claude',
+    authMode: data[KEYS.authMode] || 'apikey',
   };
 }
 
-async function saveApiKey(apiKey, provider) {
-  await setStorage({ [KEYS.apiKey]: apiKey, [KEYS.provider]: provider });
+async function saveApiKeyConfig(apiKey, provider) {
+  await setStorage({
+    [KEYS.apiKey]: apiKey,
+    [KEYS.provider]: provider,
+    [KEYS.authMode]: 'apikey',
+  });
+}
+
+async function saveOAuthConfig() {
+  await setStorage({
+    [KEYS.provider]: 'chatgpt-oauth',
+    [KEYS.authMode]: 'oauth',
+  });
+}
+
+async function clearAuth() {
+  await chrome.storage.local.remove([KEYS.apiKey, KEYS.provider, KEYS.authMode]);
+  await clearOAuthTokens();
 }
 
 async function getNotes() {
@@ -68,7 +86,7 @@ async function callClaude(apiKey, content) {
   return block?.text || '';
 }
 
-async function callOpenAI(apiKey, content) {
+async function callOpenAIKey(apiKey, content) {
   let resp = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -84,7 +102,6 @@ async function callOpenAI(apiKey, content) {
       ],
     }),
   });
-  // Retry once on rate limit
   if (resp.status === 429) {
     await new Promise((r) => setTimeout(r, 3000));
     resp = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -108,11 +125,16 @@ async function callOpenAI(apiKey, content) {
   return data.choices?.[0]?.message?.content || '';
 }
 
-async function organizeNote(apiKey, provider, content) {
+async function organizeNote(authMode, apiKey, provider, content) {
   try {
-    const text = provider === 'openai'
-      ? await callOpenAI(apiKey, content)
-      : await callClaude(apiKey, content);
+    let text;
+    if (authMode === 'oauth') {
+      text = await callChatGPTOAuth(content);
+    } else if (provider === 'openai') {
+      text = await callOpenAIKey(apiKey, content);
+    } else {
+      text = await callClaude(apiKey, content);
+    }
     if (!text) return null;
     const cleaned = text.replace(/^```json?\n?/m, '').replace(/\n?```$/m, '').trim();
     return JSON.parse(cleaned);
@@ -136,7 +158,13 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-// ── Render ──
+function escHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ── Render: Setup ──
 
 const app = document.getElementById('app');
 
@@ -144,27 +172,52 @@ function renderSetup(savedProvider) {
   let provider = savedProvider || 'claude';
   const prefixes = { claude: 'sk-ant-', openai: 'sk-' };
   const placeholders = { claude: 'sk-ant-...', openai: 'sk-...' };
-  const helpUrls = {
-    claude: 'https://console.anthropic.com/',
-    openai: 'https://platform.openai.com/api-keys',
-  };
+  let oauthLoading = false;
+  let oauthError = '';
 
   function draw() {
     app.innerHTML = `
       <div class="setup">
         <h2>⚡ Right Now</h2>
-        <p>Choose your AI provider and enter your API key</p>
+        <p>Sign in with ChatGPT or use an API key</p>
+
+        <button class="btn-oauth" id="oauth-btn" ${oauthLoading ? 'disabled' : ''}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.046 6.046 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v3.005l-2.607 1.5-2.602-1.5z" fill="currentColor"/>
+          </svg>
+          ${oauthLoading ? 'Signing in...' : 'Sign in with ChatGPT'}
+        </button>
+        ${oauthError ? `<div style="color:var(--danger);font-size:11px;margin-bottom:8px;">${escHtml(oauthError)}</div>` : ''}
+
+        <div class="divider"><span>or use API key</span></div>
+
         <div class="setup-providers">
           <button data-p="claude" class="${provider === 'claude' ? 'active' : ''}">Claude</button>
-          <button data-p="openai" class="${provider === 'openai' ? 'active' : ''}">ChatGPT</button>
+          <button data-p="openai" class="${provider === 'openai' ? 'active' : ''}">OpenAI</button>
         </div>
         <input type="password" id="key-input" placeholder="${placeholders[provider]}" />
         <div id="setup-error" style="color:var(--danger);font-size:11px;margin-bottom:8px;display:none;"></div>
         <button class="btn btn-primary" style="width:100%" id="save-btn">Get Started</button>
-        <p class="help">Get a key at <a href="${helpUrls[provider]}" target="_blank">${helpUrls[provider].replace('https://', '')}</a></p>
       </div>
     `;
 
+    // OAuth button
+    document.getElementById('oauth-btn').addEventListener('click', async () => {
+      oauthLoading = true;
+      oauthError = '';
+      draw();
+      try {
+        await startOAuthLogin();
+        await saveOAuthConfig();
+        renderMain('oauth', null, 'chatgpt-oauth');
+      } catch (err) {
+        oauthLoading = false;
+        oauthError = err.message;
+        draw();
+      }
+    });
+
+    // Provider tabs
     app.querySelectorAll('[data-p]').forEach((btn) => {
       btn.addEventListener('click', () => {
         provider = btn.dataset.p;
@@ -172,6 +225,7 @@ function renderSetup(savedProvider) {
       });
     });
 
+    // API key save
     document.getElementById('save-btn').addEventListener('click', async () => {
       const key = document.getElementById('key-input').value.trim();
       const errEl = document.getElementById('setup-error');
@@ -185,18 +239,21 @@ function renderSetup(savedProvider) {
         errEl.style.display = 'block';
         return;
       }
-      await saveApiKey(key, provider);
-      renderMain(key, provider);
+      await saveApiKeyConfig(key, provider);
+      renderMain('apikey', key, provider);
     });
   }
 
   draw();
 }
 
-async function renderMain(apiKey, provider) {
+// ── Render: Main ──
+
+async function renderMain(authMode, apiKey, provider) {
   const notes = await getNotes();
 
   function draw(status) {
+    const providerLabel = authMode === 'oauth' ? 'ChatGPT' : provider === 'claude' ? 'Claude' : 'OpenAI';
     const noteItems = notes
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .slice(0, 20)
@@ -225,7 +282,7 @@ async function renderMain(apiKey, provider) {
     app.innerHTML = `
       <div class="header">
         <h1>⚡ Right Now</h1>
-        <span class="provider" id="change-key">${provider === 'claude' ? 'Claude' : 'ChatGPT'} ▾</span>
+        <span class="provider" id="change-key">${providerLabel} ▾</span>
       </div>
       <div class="editor">
         <textarea id="note-input" placeholder="What's on your mind?" rows="3"></textarea>
@@ -241,7 +298,6 @@ async function renderMain(apiKey, provider) {
       }
     `;
 
-    // Bind events
     const textarea = document.getElementById('note-input');
     const saveBtn = document.getElementById('save-note');
 
@@ -256,11 +312,11 @@ async function renderMain(apiKey, provider) {
     });
     saveBtn.addEventListener('click', handleSave);
 
-    document.getElementById('change-key').addEventListener('click', () => {
-      renderSetup(provider);
+    document.getElementById('change-key').addEventListener('click', async () => {
+      await clearAuth();
+      renderSetup(provider !== 'chatgpt-oauth' ? provider : 'claude');
     });
 
-    // Delete buttons
     app.querySelectorAll('.note-delete').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -277,7 +333,6 @@ async function renderMain(apiKey, provider) {
       });
     });
 
-    // Focus textarea
     textarea.focus();
   }
 
@@ -301,8 +356,7 @@ async function renderMain(apiKey, provider) {
     await saveNotes(notes);
     draw('organizing');
 
-    // AI organize
-    const result = await organizeNote(apiKey, provider, content);
+    const result = await organizeNote(authMode, apiKey, provider, content);
     if (result && !result.error) {
       note.tags = result.tags || [];
       note.category = result.category || null;
@@ -321,18 +375,21 @@ async function renderMain(apiKey, provider) {
   draw(null);
 }
 
-function escHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
-
 // ── Init ──
 
 (async () => {
-  const { apiKey, provider } = await getApiKey();
+  const { apiKey, provider, authMode } = await getAuthConfig();
+
+  if (authMode === 'oauth') {
+    const tokens = await getValidToken();
+    if (tokens) {
+      renderMain('oauth', null, 'chatgpt-oauth');
+      return;
+    }
+  }
+
   if (apiKey) {
-    renderMain(apiKey, provider);
+    renderMain('apikey', apiKey, provider);
   } else {
     renderSetup();
   }
