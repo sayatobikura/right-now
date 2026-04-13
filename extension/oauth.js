@@ -73,16 +73,21 @@ async function clearOAuthTokens() {
 
 // ── OAuth flow (tab-based, matching Quill's build_auth_url exactly) ──
 
+// Start OAuth: save state to storage and open auth tab.
+// The popup will close when the tab opens — that's fine.
+// When the user reopens the popup, resumeOAuthIfPending() picks up.
 async function startOAuthLogin() {
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = await generateCodeChallenge(codeVerifier);
-  // Quill uses hex state (16 bytes → 32 hex chars)
   const stateBytes = crypto.getRandomValues(new Uint8Array(16));
   const state = Array.from(stateBytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
+  // Persist PKCE verifier + state so we can resume after popup reopens
+  await chrome.storage.local.set({
+    oauth_pending: { codeVerifier, state, startedAt: Date.now() },
+  });
   await chrome.storage.local.remove(['oauth_callback']);
 
-  // Exact same params and order as Quill's build_auth_url()
   const params = new URLSearchParams();
   params.set('response_type', 'code');
   params.set('client_id', OAUTH_CLIENT_ID);
@@ -96,49 +101,47 @@ async function startOAuthLogin() {
   params.set('originator', 'quill');
 
   await chrome.tabs.create({ url: `${OAUTH_AUTH_URL}?${params}` });
-
-  const code = await waitForCallback(state, 120_000);
-
-  return exchangeCode(code, codeVerifier);
+  // Popup will close here — flow continues in resumeOAuthIfPending()
 }
 
-function waitForCallback(expectedState, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
+// Called when popup opens. Checks if there's a pending OAuth flow
+// with a callback ready from background.js.
+async function resumeOAuthIfPending() {
+  const data = await chrome.storage.local.get(['oauth_pending', 'oauth_callback']);
+  const pending = data.oauth_pending;
+  const cb = data.oauth_callback;
 
-    const check = async () => {
-      const data = await chrome.storage.local.get(['oauth_callback']);
-      const cb = data.oauth_callback;
+  if (!pending) return null; // No pending OAuth flow
 
-      if (cb && cb.timestamp > start - 1000) {
-        await chrome.storage.local.remove(['oauth_callback']);
+  // Check if callback hasn't arrived yet (user might reopen popup before finishing login)
+  if (!cb) {
+    // Check if it's been too long (2 minutes)
+    if (Date.now() - pending.startedAt > 120_000) {
+      await chrome.storage.local.remove(['oauth_pending']);
+      return { error: 'Login timed out. Please try again.' };
+    }
+    return { waiting: true }; // Still waiting for user to complete login
+  }
 
-        if (cb.error) {
-          reject(new Error(cb.errorDescription || cb.error));
-          return;
-        }
-        if (cb.state !== expectedState) {
-          reject(new Error('State mismatch'));
-          return;
-        }
-        if (!cb.code) {
-          reject(new Error('No auth code received'));
-          return;
-        }
-        resolve(cb.code);
-        return;
-      }
+  // Callback arrived — clean up and process
+  await chrome.storage.local.remove(['oauth_pending', 'oauth_callback']);
 
-      if (Date.now() - start > timeoutMs) {
-        reject(new Error('Login timed out. Please try again.'));
-        return;
-      }
+  if (cb.error) {
+    return { error: cb.errorDescription || cb.error };
+  }
+  if (cb.state !== pending.state) {
+    return { error: 'State mismatch. Please try again.' };
+  }
+  if (!cb.code) {
+    return { error: 'No auth code received.' };
+  }
 
-      setTimeout(check, 500);
-    };
-
-    check();
-  });
+  try {
+    const tokens = await exchangeCode(cb.code, pending.codeVerifier);
+    return { success: true, tokens };
+  } catch (err) {
+    return { error: err.message };
+  }
 }
 
 // Token exchange — Quill uses form-encoded POST (not JSON)

@@ -201,15 +201,15 @@ function renderSetup(savedProvider) {
       </div>
     `;
 
-    // OAuth button
+    // OAuth button — opens auth tab, popup will close
     document.getElementById('oauth-btn').addEventListener('click', async () => {
       oauthLoading = true;
       oauthError = '';
       draw();
       try {
         await startOAuthLogin();
-        await saveOAuthConfig();
-        renderMain('oauth', null, 'chatgpt-oauth');
+        // Popup closes here when the auth tab opens.
+        // Flow resumes in init() when user reopens popup.
       } catch (err) {
         oauthLoading = false;
         oauthError = err.message;
@@ -378,6 +378,29 @@ async function renderMain(authMode, apiKey, provider) {
 // ── Init ──
 
 (async () => {
+  // 1. Check if there's a pending OAuth flow to resume
+  const oauthResult = await resumeOAuthIfPending();
+  if (oauthResult) {
+    if (oauthResult.success) {
+      // OAuth completed! Save config and go to main
+      await saveOAuthConfig();
+      renderMain('oauth', null, 'chatgpt-oauth');
+      return;
+    }
+    if (oauthResult.waiting) {
+      // User reopened popup but hasn't finished login yet
+      // Show setup with a "waiting" message
+      renderSetup();
+      return;
+    }
+    if (oauthResult.error) {
+      // OAuth failed — show setup with error
+      renderSetup();
+      return;
+    }
+  }
+
+  // 2. Check existing auth
   const { apiKey, provider, authMode } = await getAuthConfig();
 
   if (authMode === 'oauth') {
