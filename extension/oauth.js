@@ -4,8 +4,8 @@
 const OAUTH_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 const OAUTH_AUTH_URL = 'https://auth.openai.com/oauth/authorize';
 const OAUTH_TOKEN_URL = 'https://auth.openai.com/oauth/token';
-const OAUTH_SCOPE = 'openai.chat.completions openai.responses openai.responses.stream';
-const OAUTH_AUDIENCE = 'https://api.openai.com/v1';
+const OAUTH_SCOPE = 'openid profile email offline_access';
+const OAUTH_RESOURCE = 'https://api.openai.com/v1';
 const OAUTH_REDIRECT_URI = 'http://localhost:19284/auth/callback';
 
 const OAUTH_KEYS = {
@@ -87,10 +87,12 @@ async function startOAuthLogin() {
     redirect_uri: OAUTH_REDIRECT_URI,
     response_type: 'code',
     scope: OAUTH_SCOPE,
-    audience: OAUTH_AUDIENCE,
+    resource: OAUTH_RESOURCE,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
     state: state,
+    id_token_add_organizations: 'true',
+    codex_cli_simplified_flow: 'true',
   });
 
   // Open auth page in a new tab
@@ -152,6 +154,7 @@ async function exchangeCode(code, codeVerifier) {
       code,
       code_verifier: codeVerifier,
       redirect_uri: OAUTH_REDIRECT_URI,
+      resource: OAUTH_RESOURCE,
     }),
   });
 
