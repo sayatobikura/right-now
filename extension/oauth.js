@@ -228,7 +228,7 @@ async function callChatGPTOAuth(content) {
       ...(tokens.accountId ? { 'chatgpt-account-id': tokens.accountId } : {}),
     },
     body: JSON.stringify({
-      model: 'o4-mini',
+      model: 'gpt-5.3-codex',
       instructions: ORGANIZE_PROMPT_TEXT,
       input: [{ role: 'user', content: `Note content:\n${content}` }],
       stream: true,
