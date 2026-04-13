@@ -1,12 +1,11 @@
 // OpenAI OAuth — PKCE flow for ChatGPT subscribers
-// Uses the same public client as Codex CLI, with localhost redirect
+// Matches Quill's implementation exactly (src-tauri/src/ai/oauth.rs)
 
 const OAUTH_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 const OAUTH_AUTH_URL = 'https://auth.openai.com/oauth/authorize';
 const OAUTH_TOKEN_URL = 'https://auth.openai.com/oauth/token';
 const OAUTH_SCOPE = 'openid profile email offline_access';
-const OAUTH_RESOURCE = 'https://api.openai.com/v1';
-const OAUTH_REDIRECT_URI = 'http://localhost:19284/auth/callback';
+const OAUTH_REDIRECT_URI = 'http://localhost:1455/auth/callback';
 
 const OAUTH_KEYS = {
   accessToken: 'oauth_access_token',
@@ -72,36 +71,34 @@ async function clearOAuthTokens() {
   await chrome.storage.local.remove([...Object.values(OAUTH_KEYS), 'oauth_callback']);
 }
 
-// ── OAuth flow (tab-based) ──
+// ── OAuth flow (tab-based, matching Quill's build_auth_url exactly) ──
 
 async function startOAuthLogin() {
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = await generateCodeChallenge(codeVerifier);
-  const state = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)));
+  // Quill uses hex state (16 bytes → 32 hex chars)
+  const stateBytes = crypto.getRandomValues(new Uint8Array(16));
+  const state = Array.from(stateBytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
-  // Clear any previous callback data
   await chrome.storage.local.remove(['oauth_callback']);
 
-  const params = new URLSearchParams({
-    client_id: OAUTH_CLIENT_ID,
-    redirect_uri: OAUTH_REDIRECT_URI,
-    response_type: 'code',
-    scope: OAUTH_SCOPE,
-    resource: OAUTH_RESOURCE,
-    code_challenge: codeChallenge,
-    code_challenge_method: 'S256',
-    state: state,
-    id_token_add_organizations: 'true',
-    codex_cli_simplified_flow: 'true',
-  });
+  // Exact same params and order as Quill's build_auth_url()
+  const params = new URLSearchParams();
+  params.set('response_type', 'code');
+  params.set('client_id', OAUTH_CLIENT_ID);
+  params.set('redirect_uri', OAUTH_REDIRECT_URI);
+  params.set('scope', OAUTH_SCOPE);
+  params.set('state', state);
+  params.set('code_challenge', codeChallenge);
+  params.set('code_challenge_method', 'S256');
+  params.set('id_token_add_organizations', 'true');
+  params.set('codex_cli_simplified_flow', 'true');
+  params.set('originator', 'quill');
 
-  // Open auth page in a new tab
   await chrome.tabs.create({ url: `${OAUTH_AUTH_URL}?${params}` });
 
-  // Poll for the callback result (background.js writes it when redirect happens)
   const code = await waitForCallback(state, 120_000);
 
-  // Exchange code for tokens
   return exchangeCode(code, codeVerifier);
 }
 
@@ -144,18 +141,19 @@ function waitForCallback(expectedState, timeoutMs) {
   });
 }
 
+// Token exchange — Quill uses form-encoded POST (not JSON)
 async function exchangeCode(code, codeVerifier) {
+  const body = new URLSearchParams();
+  body.set('grant_type', 'authorization_code');
+  body.set('client_id', OAUTH_CLIENT_ID);
+  body.set('code', code);
+  body.set('code_verifier', codeVerifier);
+  body.set('redirect_uri', OAUTH_REDIRECT_URI);
+
   const resp = await fetch(OAUTH_TOKEN_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      grant_type: 'authorization_code',
-      client_id: OAUTH_CLIENT_ID,
-      code,
-      code_verifier: codeVerifier,
-      redirect_uri: OAUTH_REDIRECT_URI,
-      resource: OAUTH_RESOURCE,
-    }),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
   });
 
   if (!resp.ok) {
@@ -167,15 +165,17 @@ async function exchangeCode(code, codeVerifier) {
   return saveOAuthTokens(data.access_token, data.refresh_token, data.expires_in);
 }
 
+// Token refresh — also form-encoded
 async function refreshAccessToken(refreshToken) {
+  const body = new URLSearchParams();
+  body.set('grant_type', 'refresh_token');
+  body.set('client_id', OAUTH_CLIENT_ID);
+  body.set('refresh_token', refreshToken);
+
   const resp = await fetch(OAUTH_TOKEN_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      grant_type: 'refresh_token',
-      client_id: OAUTH_CLIENT_ID,
-      refresh_token: refreshToken,
-    }),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
   });
 
   if (!resp.ok) throw new Error(`Token refresh failed (${resp.status})`);
@@ -188,7 +188,6 @@ async function getValidToken() {
   const tokens = await getOAuthTokens();
   if (!tokens.accessToken) return null;
 
-  // Refresh if expiring within 60 seconds
   if (Date.now() > tokens.expiresAt - 60_000) {
     if (!tokens.refreshToken) return null;
     try {
@@ -203,6 +202,7 @@ async function getValidToken() {
 }
 
 // ── ChatGPT API call via OAuth ──
+// Uses /responses endpoint (same as Quill's openai_responses.rs)
 
 const ORGANIZE_PROMPT_TEXT = `You are a note organization assistant. Given a note's content, suggest relevant tags and a category.
 
@@ -217,7 +217,7 @@ async function callChatGPTOAuth(content) {
   const tokens = await getValidToken();
   if (!tokens) throw new Error('Not logged in. Please sign in with ChatGPT.');
 
-  const resp = await fetch('https://chatgpt.com/backend-api/codex', {
+  const resp = await fetch('https://chatgpt.com/backend-api/codex/responses', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -226,10 +226,10 @@ async function callChatGPTOAuth(content) {
     },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
-      store: false,
       instructions: ORGANIZE_PROMPT_TEXT,
       input: [{ role: 'user', content: `Note content:\n${content}` }],
       stream: false,
+      store: false,
     }),
   });
 
@@ -240,6 +240,7 @@ async function callChatGPTOAuth(content) {
   if (!resp.ok) throw new Error(`ChatGPT API error (${resp.status})`);
 
   const data = await resp.json();
+  // Responses API format
   const textOutput = data.output?.find((o) => o.type === 'message')?.content?.find((c) => c.type === 'output_text');
   return textOutput?.text || '';
 }
