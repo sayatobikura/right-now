@@ -20,13 +20,13 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      width: 360px;
-      min-height: 200px;
-      max-height: 520px;
+      width: 400px;
+      min-height: 240px;
+      max-height: 580px;
       background: var(--surface-0);
       color: var(--text-primary);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      font-size: 13px;
+      font-size: 15px;
       overflow-y: auto;
     }
 
@@ -41,9 +41,9 @@
       position: sticky;
       top: 0;
     }
-    .header h1 { font-size: 14px; font-weight: 700; }
+    .header h1 { font-size: 16px; font-weight: 700; }
     .header .provider {
-      font-size: 10px;
+      font-size: 14px;
       color: var(--text-tertiary);
       cursor: pointer;
     }
@@ -61,7 +61,7 @@
       border-radius: 8px;
       padding: 10px 12px;
       color: var(--text-primary);
-      font-size: 13px;
+      font-size: 14px;
       font-family: inherit;
       resize: none;
       outline: none;
@@ -75,14 +75,14 @@
       justify-content: space-between;
       margin-top: 8px;
     }
-    .editor-hint { font-size: 10px; color: var(--text-tertiary); }
+    .editor-hint { font-size: 14px; color: var(--text-tertiary); }
 
     /* Buttons */
     .btn {
       padding: 6px 14px;
       border-radius: 8px;
       border: none;
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 500;
       cursor: pointer;
       transition: background 0.15s;
@@ -103,7 +103,7 @@
     /* Status */
     .status {
       padding: 6px 16px;
-      font-size: 11px;
+      font-size: 14px;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -123,7 +123,7 @@
     /* Notes list */
     .notes-header {
       padding: 8px 16px 4px;
-      font-size: 10px;
+      font-size: 14px;
       color: var(--text-tertiary);
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -135,7 +135,7 @@
     }
     .note-item:hover { background: var(--surface-1); }
     .note-content {
-      font-size: 12px;
+      font-size: 14px;
       color: var(--text-primary);
       white-space: pre-wrap;
       display: -webkit-box;
@@ -151,19 +151,19 @@
       flex-wrap: wrap;
     }
     .note-tag {
-      font-size: 10px;
+      font-size: 14px;
       color: var(--text-tertiary);
       background: var(--surface-2);
       padding: 1px 5px;
       border-radius: 3px;
     }
     .note-category {
-      font-size: 10px;
+      font-size: 14px;
       color: var(--accent);
       font-weight: 500;
     }
     .note-time {
-      font-size: 10px;
+      font-size: 14px;
       color: var(--text-tertiary);
     }
     .note-delete {
@@ -172,7 +172,7 @@
       border: none;
       color: var(--text-tertiary);
       cursor: pointer;
-      font-size: 11px;
+      font-size: 14px;
       padding: 2px 4px;
     }
     .note-delete:hover { color: var(--danger); }
@@ -188,7 +188,7 @@
     .tab {
       flex: 1;
       padding: 6px 8px;
-      font-size: 11px;
+      font-size: 14px;
       font-weight: 500;
       border: none;
       border-radius: 6px;
@@ -199,7 +199,7 @@
     }
     .tab.active { background: var(--accent); color: white; }
     .tab-badge-red {
-      font-size: 9px;
+      font-size: 11px;
       background: var(--danger);
       color: white;
       padding: 0 4px;
@@ -208,7 +208,7 @@
     }
     .section-label {
       padding: 8px 16px 4px;
-      font-size: 10px;
+      font-size: 14px;
       color: var(--text-tertiary);
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -216,7 +216,7 @@
     }
     .today-item { display: flex; align-items: flex-start; gap: 8px; }
     .item-body { flex: 1; min-width: 0; }
-    .type-icon { font-size: 12px; margin-top: 2px; flex-shrink: 0; width: 18px; text-align: center; }
+    .type-icon { font-size: 14px; margin-top: 2px; flex-shrink: 0; width: 18px; text-align: center; }
     .check {
       width: 16px; height: 16px; border-radius: 50%;
       border: 2px solid var(--border); background: none;
@@ -227,7 +227,7 @@
     .check.checked { background: var(--success); border-color: var(--success); }
     .note-content.done { text-decoration: line-through; color: var(--text-tertiary); }
     .badge {
-      font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 500;
+      font-size: 11px; padding: 1px 5px; border-radius: 3px; font-weight: 500;
     }
     .badge-overdue { background: rgba(232,116,97,0.15); color: #d05a48; }
     .badge-warning { background: rgba(240,198,116,0.15); color: #c9a045; }
@@ -236,7 +236,7 @@
     .note-item .item-body { flex: 1; min-width: 0; }
     .pill-group { display: flex; flex-wrap: wrap; gap: 4px; }
     .pill {
-      font-size: 10px; padding: 2px 8px; border-radius: 4px;
+      font-size: 14px; padding: 2px 8px; border-radius: 4px;
       border: none; cursor: pointer; transition: all 0.15s;
     }
     .pill:hover { opacity: 0.8; }
@@ -247,7 +247,7 @@
       text-align: center;
     }
     .setup h2 { font-size: 16px; margin-bottom: 4px; }
-    .setup p { font-size: 11px; color: var(--text-secondary); margin-bottom: 16px; }
+    .setup p { font-size: 14px; color: var(--text-secondary); margin-bottom: 16px; }
     .setup-providers {
       display: flex;
       gap: 8px;
@@ -260,7 +260,7 @@
       border: 1px solid var(--border);
       background: var(--surface-2);
       color: var(--text-secondary);
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 500;
       cursor: pointer;
       transition: all 0.15s;
@@ -278,13 +278,13 @@
       border-radius: 8px;
       padding: 8px 12px;
       color: var(--text-primary);
-      font-size: 12px;
+      font-size: 14px;
       outline: none;
       margin-bottom: 8px;
     }
     .setup input:focus { border-color: var(--accent); }
     .setup .help {
-      font-size: 10px;
+      font-size: 14px;
       color: var(--text-tertiary);
       margin-top: 12px;
     }
@@ -302,7 +302,7 @@
       border: 1px solid var(--border);
       background: var(--surface-1);
       color: var(--text-primary);
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 500;
       cursor: pointer;
       margin-bottom: 12px;
@@ -322,9 +322,9 @@
       height: 1px;
       background: var(--border);
     }
-    .divider span { font-size: 10px; color: var(--text-tertiary); }
+    .divider span { font-size: 14px; color: var(--text-tertiary); }
     .oauth-status {
-      font-size: 11px;
+      font-size: 14px;
       color: var(--success);
       margin-bottom: 8px;
       display: flex;
@@ -337,7 +337,7 @@
       padding: 32px 16px;
       text-align: center;
       color: var(--text-tertiary);
-      font-size: 12px;
+      font-size: 14px;
     }
   </style>
 </head>

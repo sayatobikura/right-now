@@ -199,7 +199,7 @@ function renderSetup(savedProvider) {
           </svg>
           ${oauthLoading ? 'Signing in...' : 'Sign in with ChatGPT'}
         </button>
-        ${oauthError ? `<div style="color:var(--danger);font-size:11px;margin-bottom:8px;">${escHtml(oauthError)}</div>` : ''}
+        ${oauthError ? `<div style="color:var(--danger);font-size:14px;margin-bottom:8px;">${escHtml(oauthError)}</div>` : ''}
 
         <div class="divider"><span>or use API key</span></div>
 
@@ -208,7 +208,7 @@ function renderSetup(savedProvider) {
           <button data-p="openai" class="${provider === 'openai' ? 'active' : ''}">OpenAI</button>
         </div>
         <input type="password" id="key-input" placeholder="${placeholders[provider]}" />
-        <div id="setup-error" style="color:var(--danger);font-size:11px;margin-bottom:8px;display:none;"></div>
+        <div id="setup-error" style="color:var(--danger);font-size:14px;margin-bottom:8px;display:none;"></div>
         <button class="btn btn-primary" style="width:100%" id="save-btn">Get Started</button>
       </div>
     `;
@@ -332,33 +332,33 @@ async function renderMain(authMode, apiKey, provider) {
 
     app.innerHTML = `
       <div class="header">
-        <button id="back-btn" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:13px;">← Back</button>
+        <button id="back-btn" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;">← Back</button>
         <span class="provider">${TYPE_ICONS[n.itemType || 'note']} ${n.itemType || 'note'}</span>
       </div>
       <div style="padding:12px 16px;">
-        <textarea id="edit-content" rows="4" style="width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text-primary);font-size:13px;font-family:inherit;resize:none;outline:none;">${escHtml(n.content)}</textarea>
+        <textarea id="edit-content" rows="4" style="width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text-primary);font-size:14px;font-family:inherit;resize:none;outline:none;">${escHtml(n.content)}</textarea>
         <div style="display:flex;gap:6px;margin-top:8px;">
           <button class="btn btn-primary" id="save-edit">Save</button>
           <button class="btn" id="save-reorg" style="background:var(--surface-2);color:var(--text-primary);">Save & Re-organize</button>
         </div>
         ${statusHtml}
         <div style="margin-top:12px;">
-          <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px;">Type</div>
+          <div style="font-size:14px;color:var(--text-tertiary);margin-bottom:4px;">Type</div>
           <div class="pill-group">${pills(ALL_TYPES, n.itemType, 'itemType')}</div>
         </div>
         <div style="margin-top:8px;">
-          <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px;">Priority</div>
+          <div style="font-size:14px;color:var(--text-tertiary);margin-bottom:4px;">Priority</div>
           <div class="pill-group">${pills(ALL_PRIORITIES, n.priority, 'priority')}</div>
         </div>
         <div style="margin-top:8px;">
-          <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px;">Category</div>
+          <div style="font-size:14px;color:var(--text-tertiary);margin-bottom:4px;">Category</div>
           <div class="pill-group">${pills(ALL_CATEGORIES, n.category, 'category')}</div>
         </div>
         <div style="margin-top:8px;">
-          <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px;">Deadline</div>
+          <div style="font-size:14px;color:var(--text-tertiary);margin-bottom:4px;">Deadline</div>
           <div style="display:flex;align-items:center;gap:6px;">
-            <input type="date" id="edit-deadline" value="${n.deadline || ''}" style="background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;color:var(--text-primary);outline:none;" />
-            ${n.deadline ? '<button id="clear-deadline" style="font-size:10px;color:var(--text-tertiary);background:none;border:none;cursor:pointer;">clear</button>' : ''}
+            <input type="date" id="edit-deadline" value="${n.deadline || ''}" style="background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:14px;color:var(--text-primary);outline:none;" />
+            ${n.deadline ? '<button id="clear-deadline" style="font-size:14px;color:var(--text-tertiary);background:none;border:none;cursor:pointer;">clear</button>' : ''}
           </div>
         </div>
         <div style="margin-top:8px;">
