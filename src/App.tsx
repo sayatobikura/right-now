@@ -67,6 +67,27 @@ export default function App() {
     [clearConnections]
   );
 
+  const handleReorganize = useCallback(
+    async (note: Note) => {
+      if (!apiKey) return;
+      const result = await organizeNote(note.content, apiKey, provider);
+      if (result) {
+        const updates: Partial<Note> = {
+          tags: result.tags,
+          category: result.category,
+        };
+        if (result.type) updates.itemType = result.type;
+        if (result.priority !== undefined) updates.priority = result.priority;
+        if (result.deadline !== undefined) updates.deadline = result.deadline;
+        if (result.suggestedSchedule !== undefined) updates.scheduledDate = result.suggestedSchedule;
+        if (result.type === 'task' || result.deadline) updates.status = 'active';
+        updateNote(note.id, updates);
+        setSelectedNote((prev) => (prev ? { ...prev, ...updates } : null));
+      }
+    },
+    [apiKey, provider, organizeNote, updateNote]
+  );
+
   const handleFindConnections = useCallback(
     (note: Note) => {
       if (apiKey) findConnections(note, notes, apiKey, provider);
@@ -194,11 +215,13 @@ export default function App() {
           note={selectedNote}
           connections={connections}
           isLoadingConnections={isLoadingConnections}
+          isReorganizing={isOrganizing}
           allNotes={notes}
           onUpdate={(id, updates) => {
             updateNote(id, updates);
             setSelectedNote((prev) => (prev ? { ...prev, ...updates } : null));
           }}
+          onReorganize={handleReorganize}
           onFindConnections={handleFindConnections}
           onClose={() => {
             setSelectedNote(null);
