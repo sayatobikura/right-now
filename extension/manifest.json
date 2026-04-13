@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Right Now — Quick Notes",
+  "version": "1.0.0",
+  "description": "Capture notes from anywhere. AI auto-organizes them.",
+  "permissions": ["storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Right Now"
+  }
+}

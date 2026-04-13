@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    :root {
+      --surface-0: #0f0f13;
+      --surface-1: #1a1a24;
+      --surface-2: #252533;
+      --text-primary: #f0f0f5;
+      --text-secondary: #a0a0b8;
+      --text-tertiary: #6b6b80;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --danger: #ef4444;
+      --success: #22c55e;
+      --border: #2a2a3c;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 360px;
+      min-height: 200px;
+      max-height: 520px;
+      background: var(--surface-0);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 13px;
+      overflow-y: auto;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-1);
+      position: sticky;
+      top: 0;
+    }
+    .header h1 { font-size: 14px; font-weight: 700; }
+    .header .provider {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      cursor: pointer;
+    }
+    .header .provider:hover { color: var(--text-secondary); }
+
+    /* Editor */
+    .editor {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .editor textarea {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: var(--text-primary);
+      font-size: 13px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      min-height: 72px;
+    }
+    .editor textarea::placeholder { color: var(--text-tertiary); }
+    .editor textarea:focus { border-color: var(--accent); }
+    .editor-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+    }
+    .editor-hint { font-size: 10px; color: var(--text-tertiary); }
+
+    /* Buttons */
+    .btn {
+      padding: 6px 14px;
+      border-radius: 8px;
+      border: none;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:disabled { opacity: 0.4; cursor: default; }
+    .btn-ghost {
+      background: none;
+      color: var(--text-secondary);
+      padding: 4px 8px;
+    }
+    .btn-ghost:hover { color: var(--text-primary); }
+
+    /* Status */
+    .status {
+      padding: 6px 16px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status.organizing { color: var(--accent); }
+    .status.error { color: var(--danger); background: rgba(239,68,68,0.08); }
+    .status.success { color: var(--success); }
+    .spinner {
+      width: 10px; height: 10px;
+      border: 2px solid var(--accent);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Notes list */
+    .notes-header {
+      padding: 8px 16px 4px;
+      font-size: 10px;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .note-item {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: default;
+    }
+    .note-item:hover { background: var(--surface-1); }
+    .note-content {
+      font-size: 12px;
+      color: var(--text-primary);
+      white-space: pre-wrap;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .note-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+    .note-tag {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      background: var(--surface-2);
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+    .note-category {
+      font-size: 10px;
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .note-time {
+      font-size: 10px;
+      color: var(--text-tertiary);
+    }
+    .note-delete {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      font-size: 11px;
+      padding: 2px 4px;
+    }
+    .note-delete:hover { color: var(--danger); }
+
+    /* Setup */
+    .setup {
+      padding: 24px 16px;
+      text-align: center;
+    }
+    .setup h2 { font-size: 16px; margin-bottom: 4px; }
+    .setup p { font-size: 11px; color: var(--text-secondary); margin-bottom: 16px; }
+    .setup-providers {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .setup-providers button {
+      flex: 1;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .setup-providers button.active {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+    .setup input[type="password"],
+    .setup input[type="text"] {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--text-primary);
+      font-size: 12px;
+      outline: none;
+      margin-bottom: 8px;
+    }
+    .setup input:focus { border-color: var(--accent); }
+    .setup .help {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      margin-top: 12px;
+    }
+    .setup .help a { color: var(--accent); }
+
+    /* Empty */
+    .empty {
+      padding: 32px 16px;
+      text-align: center;
+      color: var(--text-tertiary);
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
