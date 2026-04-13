@@ -1,11 +1,12 @@
 // OpenAI OAuth — PKCE flow for ChatGPT subscribers
-// Uses the same public client as Codex CLI
+// Uses the same public client as Codex CLI, with localhost redirect
 
 const OAUTH_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 const OAUTH_AUTH_URL = 'https://auth.openai.com/oauth/authorize';
 const OAUTH_TOKEN_URL = 'https://auth.openai.com/oauth/token';
 const OAUTH_SCOPE = 'openai.chat.completions openai.responses openai.responses.stream';
 const OAUTH_AUDIENCE = 'https://api.openai.com/v1';
+const OAUTH_REDIRECT_URI = 'http://localhost/callback';
 
 const OAUTH_KEYS = {
   accessToken: 'oauth_access_token',
@@ -16,12 +17,6 @@ const OAUTH_KEYS = {
 
 // ── PKCE helpers ──
 
-function generateRandomBytes(length) {
-  const arr = new Uint8Array(length);
-  crypto.getRandomValues(arr);
-  return arr;
-}
-
 function base64UrlEncode(buffer) {
   const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   let binary = '';
@@ -30,23 +25,19 @@ function base64UrlEncode(buffer) {
 }
 
 function generateCodeVerifier() {
-  return base64UrlEncode(generateRandomBytes(32));
+  return base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
 }
 
 async function generateCodeChallenge(verifier) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(verifier);
-  const digest = await crypto.subtle.digest('SHA-256', data);
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
   return base64UrlEncode(digest);
 }
 
-// ── JWT decode (extract account ID) ──
+// ── JWT decode ──
 
 function decodeJwtAccountId(token) {
   try {
-    const parts = token.split('.');
-    if (parts.length < 2) return null;
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
     return payload['https://api.openai.com/auth']?.['chatgpt_account_id'] || null;
   } catch {
     return null;
@@ -78,20 +69,22 @@ async function saveOAuthTokens(accessToken, refreshToken, expiresIn) {
 }
 
 async function clearOAuthTokens() {
-  await chrome.storage.local.remove(Object.values(OAUTH_KEYS));
+  await chrome.storage.local.remove([...Object.values(OAUTH_KEYS), 'oauth_callback']);
 }
 
-// ── OAuth flow ──
+// ── OAuth flow (tab-based) ──
 
 async function startOAuthLogin() {
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = await generateCodeChallenge(codeVerifier);
-  const state = base64UrlEncode(generateRandomBytes(16));
-  const redirectUrl = chrome.identity.getRedirectURL();
+  const state = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)));
+
+  // Clear any previous callback data
+  await chrome.storage.local.remove(['oauth_callback']);
 
   const params = new URLSearchParams({
     client_id: OAUTH_CLIENT_ID,
-    redirect_uri: redirectUrl,
+    redirect_uri: OAUTH_REDIRECT_URI,
     response_type: 'code',
     scope: OAUTH_SCOPE,
     audience: OAUTH_AUDIENCE,
@@ -100,56 +93,65 @@ async function startOAuthLogin() {
     state: state,
   });
 
-  const authUrl = `${OAUTH_AUTH_URL}?${params.toString()}`;
+  // Open auth page in a new tab
+  await chrome.tabs.create({ url: `${OAUTH_AUTH_URL}?${params}` });
 
+  // Poll for the callback result (background.js writes it when redirect happens)
+  const code = await waitForCallback(state, 120_000);
+
+  // Exchange code for tokens
+  return exchangeCode(code, codeVerifier);
+}
+
+function waitForCallback(expectedState, timeoutMs) {
   return new Promise((resolve, reject) => {
-    chrome.identity.launchWebAuthFlow(
-      { url: authUrl, interactive: true },
-      async (responseUrl) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
-        }
-        if (!responseUrl) {
-          reject(new Error('No response from auth flow'));
-          return;
-        }
+    const start = Date.now();
 
-        const url = new URL(responseUrl);
-        const code = url.searchParams.get('code');
-        const returnedState = url.searchParams.get('state');
+    const check = async () => {
+      const data = await chrome.storage.local.get(['oauth_callback']);
+      const cb = data.oauth_callback;
 
-        if (returnedState !== state) {
-          reject(new Error('State mismatch — possible CSRF'));
+      if (cb && cb.timestamp > start - 1000) {
+        await chrome.storage.local.remove(['oauth_callback']);
+
+        if (cb.error) {
+          reject(new Error(cb.errorDescription || cb.error));
           return;
         }
-        if (!code) {
-          const err = url.searchParams.get('error_description') || url.searchParams.get('error') || 'No auth code';
-          reject(new Error(err));
+        if (cb.state !== expectedState) {
+          reject(new Error('State mismatch'));
           return;
         }
-
-        try {
-          const tokens = await exchangeCode(code, codeVerifier, redirectUrl);
-          resolve(tokens);
-        } catch (err) {
-          reject(err);
+        if (!cb.code) {
+          reject(new Error('No auth code received'));
+          return;
         }
+        resolve(cb.code);
+        return;
       }
-    );
+
+      if (Date.now() - start > timeoutMs) {
+        reject(new Error('Login timed out. Please try again.'));
+        return;
+      }
+
+      setTimeout(check, 500);
+    };
+
+    check();
   });
 }
 
-async function exchangeCode(code, codeVerifier, redirectUri) {
+async function exchangeCode(code, codeVerifier) {
   const resp = await fetch(OAUTH_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       grant_type: 'authorization_code',
       client_id: OAUTH_CLIENT_ID,
-      code: code,
+      code,
       code_verifier: codeVerifier,
-      redirect_uri: redirectUri,
+      redirect_uri: OAUTH_REDIRECT_URI,
     }),
   });
 
@@ -173,16 +175,10 @@ async function refreshAccessToken(refreshToken) {
     }),
   });
 
-  if (!resp.ok) {
-    throw new Error(`Token refresh failed (${resp.status})`);
-  }
+  if (!resp.ok) throw new Error(`Token refresh failed (${resp.status})`);
 
   const data = await resp.json();
-  return saveOAuthTokens(
-    data.access_token,
-    data.refresh_token || refreshToken,
-    data.expires_in
-  );
+  return saveOAuthTokens(data.access_token, data.refresh_token || refreshToken, data.expires_in);
 }
 
 async function getValidToken() {
@@ -190,7 +186,7 @@ async function getValidToken() {
   if (!tokens.accessToken) return null;
 
   // Refresh if expiring within 60 seconds
-  if (Date.now() > tokens.expiresAt - 60000) {
+  if (Date.now() > tokens.expiresAt - 60_000) {
     if (!tokens.refreshToken) return null;
     try {
       return await refreshAccessToken(tokens.refreshToken);
@@ -203,7 +199,16 @@ async function getValidToken() {
   return tokens;
 }
 
-// ── ChatGPT API call (using OAuth token) ──
+// ── ChatGPT API call via OAuth ──
+
+const ORGANIZE_PROMPT_TEXT = `You are a note organization assistant. Given a note's content, suggest relevant tags and a category.
+
+Rules:
+- Tags: 1-5 short lowercase tags (e.g., "meeting", "idea", "shopping")
+- Category: exactly one of: "work", "personal", "ideas", "journal", "reference", "learning"
+
+Respond with ONLY valid JSON:
+{ "tags": ["tag1", "tag2"], "category": "work" }`;
 
 async function callChatGPTOAuth(content) {
   const tokens = await getValidToken();
@@ -232,17 +237,6 @@ async function callChatGPTOAuth(content) {
   if (!resp.ok) throw new Error(`ChatGPT API error (${resp.status})`);
 
   const data = await resp.json();
-  // The codex endpoint returns in responses format
   const textOutput = data.output?.find((o) => o.type === 'message')?.content?.find((c) => c.type === 'output_text');
   return textOutput?.text || '';
 }
-
-// Expose the ORGANIZE_PROMPT for ChatGPT OAuth calls
-const ORGANIZE_PROMPT_TEXT = `You are a note organization assistant. Given a note's content, suggest relevant tags and a category.
-
-Rules:
-- Tags: 1-5 short lowercase tags (e.g., "meeting", "idea", "shopping")
-- Category: exactly one of: "work", "personal", "ideas", "journal", "reference", "learning"
-
-Respond with ONLY valid JSON:
-{ "tags": ["tag1", "tag2"], "category": "work" }`;

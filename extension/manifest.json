@@ -3,7 +3,7 @@
   "name": "Right Now — Quick Notes",
   "version": "1.1.0",
   "description": "Capture notes from anywhere. AI auto-organizes them. Works with ChatGPT subscription.",
-  "permissions": ["storage", "identity"],
+  "permissions": ["storage", "tabs", "webNavigation"],
   "host_permissions": [
     "https://auth.openai.com/*",
     "https://chatgpt.com/*",
@@ -13,5 +13,8 @@
   "action": {
     "default_popup": "popup.html",
     "default_title": "Right Now"
+  },
+  "background": {
+    "service_worker": "background.js"
   }
 }
