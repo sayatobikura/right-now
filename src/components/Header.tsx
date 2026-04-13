@@ -11,6 +11,9 @@ interface HeaderProps {
   onClearApiKey: () => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  userName?: string | null;
+  userPhoto?: string | null;
+  onSignOut?: () => void;
 }
 
 export default function Header({
@@ -23,6 +26,9 @@ export default function Header({
   onClearApiKey,
   searchQuery,
   onSearchChange,
+  userName,
+  userPhoto,
+  onSignOut,
 }: HeaderProps) {
   const [showSettings, setShowSettings] = useState(false);
 
@@ -95,6 +101,18 @@ export default function Header({
               <>
                 <div className="fixed inset-0" onClick={() => setShowSettings(false)} />
                 <div className="absolute right-0 top-full mt-1 bg-surface-2 border border-border rounded-lg shadow-lg py-1 min-w-[180px]">
+                  {userName && (
+                    <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
+                      {userPhoto ? (
+                        <img src={userPhoto} alt="" className="w-5 h-5 rounded-full" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center text-[10px] text-white font-bold">
+                          {userName.charAt(0)}
+                        </div>
+                      )}
+                      <span className="text-xs text-text-primary truncate">{userName}</span>
+                    </div>
+                  )}
                   <div className="px-4 py-1.5 text-xs text-text-tertiary border-b border-border">
                     AI: {provider === 'claude' ? 'Claude' : 'ChatGPT'}
                   </div>
@@ -107,6 +125,17 @@ export default function Header({
                   >
                     Change Provider / Key
                   </button>
+                  {onSignOut && userName && (
+                    <button
+                      onClick={() => {
+                        onSignOut();
+                        setShowSettings(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-surface-1 transition-colors border-t border-border"
+                    >
+                      Sign Out
+                    </button>
+                  )}
                 </div>
               </>
             )}

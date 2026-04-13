@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { AppView, Note } from './types';
 import { useNotes, useAIOrganize, useApiKey, useClock } from './hooks/useApp';
+import { useAuth } from './hooks/useAuth';
 import * as NoteService from './services/NoteService';
 import SetupScreen from './components/SetupScreen';
 import Header from './components/Header';
@@ -18,7 +19,10 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
 
-  const { notes, addNote, updateNote, deleteNote, togglePin, allTags, allCategories } = useNotes();
+  const { user, isLoading: authLoading, error: authError, isFirebaseConfigured, signInWithGoogle, signOut } = useAuth();
+  const uid = user?.uid ?? null;
+
+  const { notes, addNote, updateNote, deleteNote, togglePin, allTags, allCategories } = useNotes(uid);
   const { isOrganizing, organizeError, clearError, organizeNote, connections, isLoadingConnections, findConnections, clearConnections } = useAIOrganize();
   const { apiKey, provider, hasApiKey, saveApiKey, clearApiKey } = useApiKey();
   const { timeString, dateString, timezone } = useClock();
@@ -66,8 +70,25 @@ export default function App() {
     filteredNotes = filteredNotes.filter((n) => n.category === selectedCategory);
   }
 
+  // Loading state while Firebase checks auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-0">
+        <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Show setup if no API key
   if (!hasApiKey) {
-    return <SetupScreen onSave={saveApiKey} />;
+    return (
+      <SetupScreen
+        onSave={saveApiKey}
+        onGoogleSignIn={signInWithGoogle}
+        isFirebaseConfigured={isFirebaseConfigured}
+        authError={authError}
+      />
+    );
   }
 
   return (
@@ -82,6 +103,9 @@ export default function App() {
         onClearApiKey={clearApiKey}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        userName={user?.displayName}
+        userPhoto={user?.photoURL}
+        onSignOut={signOut}
       />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">

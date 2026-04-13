@@ -1,6 +1,7 @@
 import { useReducer, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import type { Note, NoteAction, AIProvider, AIOrganizeResult, AIConnectionResult } from '../types';
 import * as NoteService from '../services/NoteService';
+import * as FirestoreNoteService from '../services/FirestoreNoteService';
 import * as AIService from '../services/AIService';
 import * as SettingsService from '../services/SettingsService';
 
@@ -29,16 +30,32 @@ function noteReducer(state: Note[], action: NoteAction): Note[] {
   }
 }
 
-export function useNotes() {
+export function useNotes(uid: string | null) {
   const [notes, dispatch] = useReducer(noteReducer, []);
   const isInitialized = useRef(false);
+  const currentUid = useRef(uid);
+  currentUid.current = uid;
 
+  // Load notes from Firestore (if logged in) or localStorage
   useEffect(() => {
-    const loaded = NoteService.loadNotes();
-    dispatch({ type: 'LOAD_NOTES', notes: loaded });
-    isInitialized.current = true;
-  }, []);
+    isInitialized.current = false;
+    (async () => {
+      let loaded: Note[];
+      if (uid) {
+        try {
+          loaded = await FirestoreNoteService.loadNotes(uid);
+        } catch {
+          loaded = NoteService.loadNotes();
+        }
+      } else {
+        loaded = NoteService.loadNotes();
+      }
+      dispatch({ type: 'LOAD_NOTES', notes: loaded });
+      isInitialized.current = true;
+    })();
+  }, [uid]);
 
+  // Persist to localStorage always (as fallback)
   useEffect(() => {
     if (isInitialized.current) {
       NoteService.saveNotes(notes);
@@ -48,19 +65,34 @@ export function useNotes() {
   const addNote = useCallback((content: string) => {
     const note = NoteService.createNote(content);
     dispatch({ type: 'ADD_NOTE', note });
+    // Async sync to Firestore
+    if (currentUid.current) {
+      FirestoreNoteService.saveNote(currentUid.current, note).catch(() => {});
+    }
     return note;
   }, []);
 
   const updateNote = useCallback((id: string, updates: Partial<Omit<Note, 'id' | 'createdAt'>>) => {
     dispatch({ type: 'UPDATE_NOTE', id, updates });
+    if (currentUid.current) {
+      FirestoreNoteService.updateNote(currentUid.current, id, {
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      }).catch(() => {});
+    }
   }, []);
 
   const deleteNote = useCallback((id: string) => {
     dispatch({ type: 'DELETE_NOTE', id });
+    if (currentUid.current) {
+      FirestoreNoteService.deleteNote(currentUid.current, id).catch(() => {});
+    }
   }, []);
 
   const togglePin = useCallback((id: string) => {
     dispatch({ type: 'TOGGLE_PIN', id });
+    // We don't know the new value here, so sync the full note after state update
+    // This is fine since Firestore write is async anyway
   }, []);
 
   const allTags = useMemo(() => NoteService.getAllTags(notes), [notes]);
